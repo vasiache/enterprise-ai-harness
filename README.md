@@ -33,11 +33,13 @@ This separation allows tools, skills, sub-agents, workflows and human approvals 
 
 # Why Enterprise AI Harness?
 
-Modern frameworks make it relatively easy to build AI agents.
+Building an AI agent is only one part of the problem.
 
-Building an enterprise-grade AI system is a different challenge.
+Deploying AI agents in enterprise environments requires an architectural layer that is typically outside the scope of agent runtimes.
 
-Enterprise environments require capabilities that should remain independent from the agent runtime itself:
+Enterprise AI Harness provides this layer by integrating identity, policy enforcement, governance, execution boundaries and multi-tenancy into a Kubernetes-native deployment model.
+
+Core capabilities include:
 
 - Identity and authentication
 - Authorization and policy enforcement
@@ -48,7 +50,7 @@ Enterprise environments require capabilities that should remain independent from
 - Governance
 - Kubernetes-native deployment
 
-Enterprise AI Harness focuses on these architectural concerns while integrating existing agent runtimes and open-source components instead of replacing them.
+Rather than replacing existing agent runtimes, Enterprise AI Harness provides the infrastructure and operational model required to run them securely in production.
 
 ---
 
