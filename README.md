@@ -1,6 +1,6 @@
 # Enterprise AI Harness
 
-> **An opinionated reference architecture and implementation for building self-hosted Enterprise AI Harnesses on Kubernetes.**
+> **An opinionated reference architecture for building and operating self-hosted enterprise AI agent systems on Kubernetes through clearly defined architectural boundaries, deployment patterns and operational practices.**
 
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Native-326CE5?logo=kubernetes&logoColor=white)
 ![License](https://img.shields.io/badge/License-TBD-lightgrey)
