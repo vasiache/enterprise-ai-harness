@@ -2,63 +2,53 @@
 
 > **An opinionated reference architecture and implementation for building self-hosted Enterprise AI Harnesses on Kubernetes.**
 
-Enterprise AI Harness is an engineering research project focused on designing and implementing production-grade AI agent systems for enterprise environments.
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Native-326CE5?logo=kubernetes&logoColor=white)
+![License](https://img.shields.io/badge/License-TBD-lightgrey)
+![Status](https://img.shields.io/badge/Status-Active%20Development-blue)
+![Architecture](https://img.shields.io/badge/Architecture-Enterprise%20AI%20Harness-purple)
 
-The project explores how to build secure, governable and multi-tenant AI systems by separating the responsibilities of user interaction, identity, agent reasoning and execution into well-defined architectural layers.
+## Scope
 
-Rather than introducing yet another agent framework, the project focuses on the architectural boundaries required to operate AI agents safely and reliably in production.
+Enterprise AI Harness focuses on the architectural layer around AI agents rather than the agent implementation itself.
 
----
+The project assumes existing agent runtimes and LLM frameworks, and concentrates on the enterprise capabilities required for production deployment—identity, governance, multi-tenancy, secure execution boundaries and observability—instead of introducing yet another agent framework.
 
-## Vision
-
-Modern LLM frameworks make it relatively easy to build an AI agent.
-
-Building an enterprise-grade AI system is a different challenge.
-
-Enterprise environments require:
-
-- identity and authentication
-- authorization and policy enforcement
-- multi-tenancy
-- auditability
-- secure execution boundaries
-- governance
-- operational observability
-- Kubernetes-native deployment
-
-Enterprise AI Harness is an opinionated reference architecture that addresses these concerns while remaining fully self-hosted and based on open-source technologies.
 
 ---
 
 # Architecture
 
-The harness separates responsibilities into four independent layers:
+The harness separates responsibilities into four independent architectural layers:
 
-```
-Input
-        │
-        ▼
-Identity / Policy / Audit
-        │
-        ▼
-Agent Loop
-        │
-        ▼
-Execution
-```
+- **Input**
+- **Identity, Policy & Audit**
+- **Agent Loop (ReAct)**
+- **Execution**
 
-This separation allows:
+![Enterprise AI Harness Architecture](diagrams/enterprise-ai-harness-overview.svg)
 
-- Human-in-the-loop (HITL)
-- Skills
-- Tools
-- MCP
-- A2A
-- Sub-agents
-- Workflows
+This separation allows tools, skills, sub-agents, workflows and human approvals (HITL) to evolve independently while preserving security, governance and tenant isolation.
 
-to evolve independently while preserving security and governance boundaries.
+---
+
+# Why Enterprise AI Harness?
+
+Modern frameworks make it relatively easy to build AI agents.
+
+Building an enterprise-grade AI system is a different challenge.
+
+Enterprise environments require capabilities that should remain independent from the agent runtime itself:
+
+- Identity and authentication
+- Authorization and policy enforcement
+- Audit and observability
+- Multi-tenancy
+- Secure execution boundaries
+- Secrets management
+- Governance
+- Kubernetes-native deployment
+
+Enterprise AI Harness focuses on these architectural concerns while integrating existing agent runtimes and open-source components instead of replacing them.
 
 ---
 
@@ -68,73 +58,74 @@ to evolve independently while preserving security and governance boundaries.
 - Enterprise-first architecture
 - Kubernetes-native
 - Security before convenience
-- Multi-tenant from the beginning
+- Multi-tenant from day one
 - Open-source ecosystem
-- Clear separation of responsibilities
-- Opinionated but extensible
-
----
-
-# Current Status
-
-Active engineering research project.
-
-The reference implementation is approximately **85% complete**.
-
-Public documentation and selected implementation components will be released incrementally together with the accompanying article series.
+- Clear architectural boundaries
+- Opinionated, but extensible
 
 ---
 
 # Article Series
 
-This repository is accompanied by a series of articles describing the architecture and design decisions.
+This repository is accompanied by a series of articles describing the architecture and implementation.
 
-Planned topics include:
-
-- Architecture Overview
-- Identity, Policy & Audit
-- Agent Loop
-- Execution Layer
-- Multi-tenancy
-- Security Boundaries
-- Kubernetes Deployment
-- Lessons Learned
+- Part 1 — Architecture Overview
+- Part 2 — Identity, Policy & Audit
+- Part 3 — Agent Loop (ReAct)
+- Part 4 — Execution Layer
+- Part 5 — Multi-tenancy
+- Part 6 — Security Boundaries
+- Part 7 — Kubernetes Deployment
+- Part 8 — Lessons Learned
 
 ---
 
 # Repository Structure
 
 ```
-docs/              Project documentation
-architecture/      Architecture concepts and ADRs
-diagrams/          Architecture diagrams
-articles/          Published articles
-examples/          Example configurations
-implementation/    Public implementation artifacts
-roadmap/           Project roadmap
+architecture/     Architecture concepts and ADRs
+articles/         Published articles
+diagrams/         Architecture diagrams
+docs/             Documentation
+examples/         Example configurations
+implementation/   Public implementation artifacts
+roadmap/          Project roadmap
 ```
 
 ---
 
-# Technology Stack
+# Technology Foundation
 
-The current implementation is based on the Kubernetes ecosystem and integrates with modern open-source AI components, including technologies such as:
+The current implementation builds on the CNCF ecosystem and integrates technologies such as:
 
 - Kubernetes
 - Gateway API
-- Kagent
+- kagent
 - MCP
 - A2A
 - Keycloak
+- Vault / OpenBao
+- External Secrets Operator
+- OpenTelemetry
 - PostgreSQL
 - Redis
 - Argo Workflows
 - Helm
 
-The implementation will continue to evolve as the ecosystem matures.
+Technology choices may evolve as the ecosystem matures.
+
+---
+
+# Project Status
+
+Active development.
+
+The repository evolves together with the accompanying article series.
+
+Documentation, implementation details and reusable components will be published incrementally.
 
 ---
 
 # License
 
-License information will be added before the public release of implementation artifacts.
+License information will be added before publishing implementation artifacts.
