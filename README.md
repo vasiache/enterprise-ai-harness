@@ -25,7 +25,7 @@ The harness separates responsibilities into four independent architectural layer
 - **Agent Loop (ReAct)**
 - **Execution**
 
-![Enterprise AI Harness Architecture](diagrams/enterprise-ai-harness-overview.svg)
+![Enterprise AI Harness Architecture](diagrams/enterprise-ai-harness-overview.png)
 
 This separation allows tools, skills, sub-agents, workflows and human approvals (HITL) to evolve independently while preserving security, governance and tenant isolation.
 
