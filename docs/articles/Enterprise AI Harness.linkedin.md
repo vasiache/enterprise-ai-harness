@@ -7,7 +7,7 @@ Building an AI agent is the easy part. Running it safely in production — that'
 
 Building an AI agent is the easy part. Running it safely in production — that's where the real architecture begins.
 
-Enterprise AI Harness is a reference architecture for the layer around existing agent runtimes: identity, policy, audit, multi-tenancy, execution boundaries. Not another runtime — the architectural layer that makes runtimes safe to run in production.
+Enterprise AI Harness is a reference architecture for the layer around existing agent runtimes: identity, policy, audit, multi-tenancy, execution boundaries. Not another runtime. The architectural layer that makes runtimes safe to run in production.
 
 The key insight: if you get the boundaries between layers right, you can replace individual components without redesigning the whole system.
 

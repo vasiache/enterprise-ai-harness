@@ -20,13 +20,13 @@ Individually, most of these projects are well documented. kagent spins up an age
 
 The complexity starts at the boundaries between them. How do you propagate identity from the user all the way to an MCP call? Where does the agent runtime end and execution begin? What about capabilities that live locally in a pod versus tools that go over the network? How do you isolate a tenant's runtime without breaking A2A between agents?
 
-Answering these questions — not choosing yet another framework — is what shaped the architecture below.
+Answering these questions, not choosing yet another framework, is what shaped the architecture below.
 
 > For me, the main value of this architecture isn't in the choice of specific projects. A year from now, some of them will likely change. The value is in the boundaries between layers: if those are chosen correctly, individual components can be replaced without redesigning the entire architecture.
 
 ## Anthropic Cores
 
-Anthropic describes a harness as a runtime for an agent: an environment that receives events, maintains stateful sessions, provides access to tools, and manages execution. Not the agent itself or one of its "smart" prompts — the entire infrastructure around it. Without it, an agent quickly becomes an expensive conversationalist with an inflated sense of confidence.
+Anthropic describes a harness as a runtime for an agent: an environment that receives events, maintains stateful sessions, provides access to tools, and manages execution. Not the agent itself or one of its "smart" prompts. The entire infrastructure around it. Without it, an agent quickly becomes an expensive conversationalist with an inflated sense of confidence.
 
 In this model, the agent doesn't live in a vacuum. It operates in a cycle of events, states, and actions. It observes something, calls something, saves something, changes something — and moves on. This isn't "one component" — it's an entire infrastructure.
 
@@ -34,7 +34,7 @@ Anthropic breaks the harness into four core concepts — Agent, Environment, Ses
 
 ## Different Requirements, Different Architecture
 
-Convenience always competes with security. Anthropic treats security as a systemic property: session, harness, and sandbox are separated; credentials are kept outside the agent's direct reach. This works — but only if you have Anthropic-level resources and team.
+Convenience always competes with security. Anthropic treats security as a systemic property: session, harness, and sandbox are separated; credentials are kept outside the agent's direct reach. This works. But only if you have Anthropic-level resources and team.
 
 Any product in an enterprise environment faces code reviews, change approvals, policy gates, and pipelines. An agent can no longer be just a "smart conversationalist" — it must become a declarative artifact that holds up to review and survives in production.
 
@@ -59,7 +59,7 @@ I'll use these terms consistently from here on.
 
 **Execution** — tools, workflows, LLM calls, and controlled access to capabilities. The agent doesn't call backends directly — all traffic passes through a unified security boundary. A tool can be anything: an MCP server, an n8n workflow, an LLM provider behind a model gateway. Execution isn't "a function call" — it's controlled access to capabilities that may themselves be complex orchestrators.
 
-**Identity, Policy & Audit** — the cross-cutting layer for identity, permissions, control, and investigation. Who is acting? What's allowed? How is it verified? How do you figure out what happened after the fact? Identity and Policy are the gates: deny entry, refuse permission. Audit is the camera: record who did what and when. They work together but serve different purposes — the former protects the system, the latter gives you the ability to investigate when something goes wrong. Without answers to these four questions, a harness is a beautiful but insecure toy. In an enterprise setting, this layer is better off as a separate architectural slice — making it easier to separate responsibilities and investigate incidents.
+**Identity, Policy & Audit** — the cross-cutting layer for identity, permissions, control, and investigation. Who is acting? What's allowed? How is it verified? How do you figure out what happened after the fact? Identity and Policy are the gates: deny entry, refuse permission. Audit is the camera: record who did what and when. They work together but serve different purposes — the former protects the system, the latter gives you the ability to investigate when something goes wrong. Without answers to these four questions, a harness is a beautiful but insecure toy. In an enterprise setting, this layer is better off as a separate architectural slice. It makes it easier to separate responsibilities and investigate incidents.
 
 Data isolation isn't a one-size-fits-all technique. Platform data (tenants, users, audit) is isolated through Row-Level Security in PostgreSQL. Agent runtime data (sessions, state, memory) lives in a different model — namespace-per-tenant, NetworkPolicy, and trusted headers from the gateway.
 
@@ -107,7 +107,7 @@ A user sends a message via Telegram: "restart service X."
 
 **Identity, Policy & Audit** — the cross-cutting layer: at every step — who (JWT claims), what's allowed (CEL), what happened (OTEL). The agent never sees secrets; access is issued through Vault and revoked after 5 minutes.
 
-I didn't write any of these parts myself — everything is assembled from open source and connected through layer boundaries.
+I didn't write any of these parts myself. Everything is assembled from open source and connected through layer boundaries.
 
 ## What Comes Next
 
