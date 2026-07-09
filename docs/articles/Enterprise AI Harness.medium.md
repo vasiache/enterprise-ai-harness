@@ -1,6 +1,7 @@
 # From Anthropic Cores to Four Layers of self-hosted Enterprise AI Harness
 
 There is no shortage of articles about building AI agents. Articles about running them safely in production are still much rarer.
+![A practical architecture frame](../../diagrams/preview_img.png)
 
 Cloud and managed harness solutions already exist. Self hosted enterprise harness is still underserved. We still do not have a stable shared language for what a harness actually is, where its boundaries sit, or which parts are essential versus optional. This piece is not an attempt to settle the definition once and for all. It is a practical architectural frame for the self hosted case that helped me make sense of the problem.
 
@@ -68,13 +69,13 @@ The boundaries run not between modules but between logically related groups of c
 
 ## One request across all four layers
 
-A concrete example shows the four layers in a single request. Take the pattern from [AI Agents & Agentic Workflows](https://medium.com/towards-applied-generative-ai/ai-agents-agentic-workflows-f558674ee18b). A task comes in, gets distributed across agents, passes through a workflow, and finishes with a review of the result. As a engineering example: add a new validation to an API method, update the tests, and prepare the resulting diff for review.
+A concrete example shows the four layers in a single request. Take the pattern from [AI Agents & Agentic Workflows](https://medium.com/towards-applied-generative-ai/ai-agents-agentic-workflows-f558674ee18b). A task comes in, gets distributed across agents, passes through a workflow, and finishes with a review of the result. As an engineering example: add a new validation to an API method, update the tests, and prepare the resulting diff for review.
 
 ![Enterprise AI Harness wrkflow](../../diagrams/enterprise-ai-harness-workflow.png)
 
 **Input and Identity.** The task arrives from Telegram, Jira, a Web UI, or another working channel. It immediately becomes a structured task rather than a chat message. A Telegram bot or frontend obtains a JWT from Keycloak and forwards the request through agentgateway. The gateway validates the token, checks CEL policy, injects trusted headers, writes an OTEL trace, and hands the agent a trusted identity context. Who placed the task, which tenant it came from, and with which permissions it can be executed.
 
-**Agent Loop (ReAct).** kagent raises a session and works not with raw text but with task context: the goal, constraints, available scope, completion criteria, and available agent roles. Through agentgateway it determines which sub agents are available, for example analyst, implementer, and reviewer. It walks the task through the chain of task to agents to flow to review. One agent clarifies requirements and builds a plan, another makes the changes, and a third runs an independent check of the result.
+**Agent Loop (ReAct).** kagent raises a session and works not with raw text but with task context: the goal, constraints, available scope, completion criteria, and available agent roles. Through agentgateway it determines which sub agents are available, for example analyst, implementer, and reviewer. It walks the task through the chain from task to agents to flow to review. One agent clarifies requirements and builds a plan, another makes the changes, and a third runs an independent check of the result.
 
 **Execution.** Each sub agent gets only its allowed set of capabilities and tools through agentgateway. Access to MCP tools and backend services goes through a controlled access path. What the agent can do is bounded by policy, scope, approval, and network isolation. The agent can change only allowed files, run only allowed checks, and never holds permanent access to secrets. When credentials are needed, they are issued as short lived credentials with TTL and auto revocation.
 
