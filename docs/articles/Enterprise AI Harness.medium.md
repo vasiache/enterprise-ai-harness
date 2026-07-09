@@ -6,13 +6,11 @@ Cloud and managed harness solutions already exist. Self hosted enterprise harnes
 
 ## The shape of the model
 
-The result is a reference architecture for a self hosted Enterprise AI Harness on Kubernetes. It has four functional layers and a set of clear integration boundaries between them.
+The result is a reference architecture for a self hosted Enterprise AI Harness on Kubernetes, with four functional layers and clear integration boundaries between them.
 
 ![Enterprise AI Harness Architecture](../../diagrams/enterprise-ai-harness-architecture.png)
 
-The four layers are Input, Agent Loop, Execution, and Identity, Policy & Audit, each covered below. Two other concerns cut across the whole system and do not belong to a single layer. Multi tenancy affects both runtime and data isolation. Kubernetes native deployment defines the operating context rather than the harness itself.
-
-This model came out of comparing Anthropic's harness concepts, CNCF oriented building blocks, and the MCP ecosystem. I reduced all of that into one scheme that can actually be assembled from open source components. It is not a product and not a framework. It is a reference architecture.
+Two concerns cut across the whole system and do not belong to a single layer. Multi tenancy affects both runtime and data isolation. Kubernetes native deployment defines the operating context rather than the harness itself. It is not a product and not a framework. It is a reference architecture.
 
 ## The problem is harder than it looks
 
@@ -26,9 +24,7 @@ The hard part begins exactly where those systems touch each other. How does user
 
 Anthropic describes a harness as the runtime around the agent. It is the environment that accepts events, maintains a stateful session, exposes tools, and governs execution. Not the agent itself and not one of its smart prompts, but the whole operational shell around it. Without that shell, an agent very quickly turns into an expensive conversationalist with an inflated sense of its own competence.
 
-That framing matters because it moves the conversation away from a single smart model call and toward an eventful system with state, actions, and side effects. An agent sees something, calls something, stores something, changes something, and continues. That is already infrastructure, not just prompting.
-
-In [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview), the harness is split into four core concepts. Agent, Environment, Session, and Events. Agent is not just the model but everything that defines behavior: model, system prompt, tools, MCP servers, and skills. Session is a working instance of the agent in a specific environment. Events are the messages the application and agent exchange. Environment is the runtime where all of it happens. It is a clean and elegant frame for thinking about runtime. I found it a useful starting point, but not quite sufficient for a self hosted enterprise setup.
+In [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview), the harness is split into four core concepts. Agent, Environment, Session, and Events. Agent is everything that defines behavior, not just the model. Session is a working instance of the agent in an environment. Events are the messages the application and agent exchange. Environment is the runtime where all of it happens. It is a clean and elegant frame, and a useful starting point, but not quite sufficient for a self hosted enterprise setup.
 
 ## Self hosted enterprise changes the picture
 
@@ -48,13 +44,13 @@ That is why Identity and Policy had to become an explicit architectural layer in
 
 These are the terms I will use throughout the rest of the article.
 
-**Input** is where user traffic, agent traffic, and event driven traffic get separated. A human enters through a browser and SSO, Single Sign On. An agent enters through JWT, JSON Web Token, and A2A, Agent to Agent. External events such as alerts or CRM hooks may enter through a webhook into a workflow. These contours pass through identity and policy differently. Merging them too early only blurs the boundaries and complicates the architecture.
+**Input** is where user, agent, and event driven traffic get separated. A human enters through a browser and SSO, Single Sign On. An agent enters through JWT, JSON Web Token, and A2A, Agent to Agent. External events such as alerts or CRM hooks may enter through a webhook. These contours pass through identity and policy differently, so merging them too early blurs the boundaries.
 
-**Agent Loop (ReAct)** is where state, reaction to events, and next action selection live. Here the agent stops being "one request to a model" and becomes a process with memory, delegation to other agents, and HITL, Human in the Loop. Without this layer the agent is just a stateless function, not a system.
+**Agent Loop (ReAct)** is where state, reaction to events, and next action selection live. Here the agent stops being "one request to a model" and becomes a process with memory, delegation, and HITL, Human in the Loop. Without it the agent is just a stateless function, not a system.
 
-**Execution** is the layer of managed access to external resources. It includes tools, workflows, and LLM calls, but it is not reducible to a function call. All traffic goes through controlled boundaries, and access to capabilities is limited per tool. That might be an MCP server, an n8n workflow, or an LLM provider. In every case it is access to a capability, not direct reach into a backend.
+**Execution** is managed access to external resources. Tools, workflows, and LLM calls all go through controlled boundaries, with access limited per tool. That might be an MCP server, an n8n workflow, or an LLM provider. In every case it is access to a capability, not direct reach into a backend.
 
-**Identity, Policy & Audit** is the cross cutting layer for identity, permissions, control, and investigation. Identity and Policy answer who is allowed to do what. Audit answers who actually did what. The first two protect the system, the third lets you investigate incidents. Without this layer the harness stays a pretty but unsafe construction. It is worth its own architectural slice, because it makes separating responsibility and analyzing failures easier.
+**Identity, Policy & Audit** is the cross cutting layer for identity, permissions, control, and investigation. Identity and Policy answer who is allowed to do what. Audit answers who actually did what. The first two protect the system, the third lets you investigate incidents. Without it the harness stays a pretty but unsafe construction, so it is worth its own architectural slice.
 
 I also treat data isolation as a layered concern rather than a single toggle. Platform data can be isolated with PostgreSQL RLS. Agent runtime can be isolated with namespace per tenant and NetworkPolicy. Session and state can be isolated through header scoped boundaries at a trusted gateway. Secrets can be isolated with per tenant paths in Vault.
 
