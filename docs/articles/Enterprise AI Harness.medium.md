@@ -1,130 +1,113 @@
-# From Anthropic Cores to 4 Layers: Building an Enterprise AI Harness from Open Source
+# From Anthropic Cores to Four Layers of Enterprise AI Harness
 
-Anthropic showed how an agent harness works. I'm not Anthropic — so I built one from available components instead of writing my own runtime. The goal: make running agents in production something a regular platform team can pull off, not just a team of geniuses in San Francisco.
+There is no shortage of articles about building AI agents. Articles about running them safely in production are still much rarer.
 
-There's plenty written about how to build an AI agent. Far less about how to run one safely and predictably in production.
+That gap matters. We still do not have a stable shared language for what a harness actually is, where its boundaries sit, or which parts are essential versus optional. This piece is not an attempt to settle the definition once and for all. It is a practical architectural frame that helped me make sense of the problem.
 
-## What Came Out of This
+## The shape of the model
 
-A reference architecture for a self-hosted Enterprise AI Harness on Kubernetes. Four functional layers and the key integration points between them.
+The result is a reference architecture for a self hosted Enterprise AI Harness on Kubernetes. It has four functional layers and a set of clear integration boundaries between them.
 
-![Enterprise AI Harness Architecture](../../diagrams/enterprise-ai-harness-overview.png)
+![Enterprise AI Harness Architecture](../../diagrams/enterprise-ai-harness-architecture.png)
 
-Across the diagram, these are four layers — Input, Agent Loop, Execution, and Identity, Policy & Audit — each broken down in detail below. On top of that, two cross-cutting concerns that don't fit neatly into a single layer: multi-tenancy (tenant isolation lives in both the runtime and the data) and Kubernetes-native deployment (this is a deployment context, not a harness layer).
+The four layers are Input, Agent Loop, Execution, and Identity, Policy & Audit, each covered below. Two other concerns cut across the whole system and do not belong to a single layer. Multi tenancy affects both runtime and data isolation. Kubernetes native deployment defines the operating context rather than the harness itself.
 
-This architecture is the result of studying Anthropic's model, CNCF projects, and the MCP ecosystem — and consolidating dozens of components into a single working model. Not a standalone product or framework — an architectural model assembled from open source components.
+This model came out of comparing Anthropic's harness concepts, CNCF oriented building blocks, and the MCP ecosystem, then reducing all of that into one scheme that can actually be assembled from open source components. It is not a product and not a framework. It is a reference architecture.
 
-## Why This Is Hard
+## Why the problem is harder than it looks
 
-Individually, most of these projects are well documented. kagent spins up an agent, LiteLLM routes models, FastMCP serves tools, Keycloak issues tokens — each does its job.
+Individually, most of these projects are well documented. kagent can manage the agent lifecycle. LiteLLM can route model traffic. FastMCP can expose tools. Keycloak can issue tokens. Each one does its job.
 
-The complexity starts at the boundaries between them. How do you propagate identity from the user all the way to an MCP call? Where does the agent runtime end and execution begin? What about capabilities that live locally in a pod versus tools that go over the network? How do you isolate a tenant's runtime without breaking A2A between agents?
+The hard part begins exactly where those systems touch each other. How does user identity survive all the way to an MCP call, Model Context Protocol. Where does the agent runtime stop and the execution layer begin. What should be treated as a pod local capability and what should stay behind a network boundary. How do you isolate tenant runtime without breaking agent to agent interaction.
 
-Answering these questions, not choosing yet another framework, is what shaped the architecture below.
+The answers to those questions, not the search for one more framework, shaped the architecture below.
 
-> For me, the main value of this architecture isn't in the choice of specific projects. A year from now, some of them will likely change. The value is in the boundaries between layers: if those are chosen correctly, individual components can be replaced without redesigning the entire architecture.
+> For me, the main value here is not the choice of specific components. Some of them will inevitably change. The valuable part is the boundary design. If those boundaries are right, individual components can be replaced without rebuilding the whole architecture.
 
-## Anthropic Cores
+## Starting from Anthropic Cores
 
-Anthropic describes a harness as a runtime for an agent: an environment that receives events, maintains stateful sessions, provides access to tools, and manages execution. Not the agent itself or one of its "smart" prompts. The entire infrastructure around it. Without it, an agent quickly becomes an expensive conversationalist with an inflated sense of confidence.
+Anthropic describes a harness as the runtime around the agent. It is the environment that accepts events, maintains a stateful session, exposes tools, and governs execution. Not the agent itself and not one of its smart prompts, but the whole operational shell around it. Without that shell, an agent very quickly turns into an expensive conversationalist with an inflated sense of its own competence.
 
-In this model, the agent doesn't live in a vacuum. It operates in a cycle of events, states, and actions. It observes something, calls something, saves something, changes something — and moves on. This isn't "one component" — it's an entire infrastructure.
+That framing matters because it moves the conversation away from a single smart model call and toward an eventful system with state, actions, and side effects. An agent sees something, calls something, stores something, changes something, and continues. That is already infrastructure, not just prompting.
 
-Anthropic breaks the harness into four core concepts — Agent, Environment, Session, and Events ([Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview)). Agent is not just a model — it's everything that defines behavior: model, system prompt, tools, MCP servers, and skills. Session is a running instance of an agent in a specific environment. Events are the messages exchanged between the application and the agent. Environment is the runtime context that makes all of this possible. This isn't philosophy for its own sake — it's a strong and elegant lens for thinking about agent runtimes.
+In [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview), the harness is split into four core concepts. Agent, Environment, Session, and Events. Agent is not just the model but everything that defines behavior: model, system prompt, tools, MCP servers, and skills. Session is a working instance of the agent in a specific environment. Events are the messages the application and agent exchange. Environment is the runtime where all of that has a chance to happen in the first place. It is a clean and elegant frame for thinking about runtime, and I found it a useful starting point, but not quite sufficient for a self hosted enterprise setup.
 
-## Different Requirements, Different Architecture
+## Why enterprise changes the picture
 
-Convenience always competes with security. Anthropic treats security as a systemic property: session, harness, and sandbox are separated; credentials are kept outside the agent's direct reach. This works. But only if you have Anthropic-level resources and team.
+Convenience and safety rarely pull in the same direction. Anthropic treats safety as a system property. Session, model, and sandbox are separated, and credentials stay outside the agent's direct reach. That works. But only when you have the resources and the team of Anthropic's caliber.
 
-Any product in an enterprise environment faces code reviews, change approvals, policy gates, and pipelines. An agent can no longer be just a "smart conversationalist" — it must become a declarative artifact that holds up to review and survives in production.
+Anything running in an enterprise environment runs into reviews, diffs, approvals, policy gates, and pipelines. At that point, an agent cannot remain just an intelligent conversational layer. It has to become a declarative artifact you are not ashamed to bring to review or to ship to production.
 
-In this model, simply "running an agent" is no longer enough. Declarative agents and skills aren't a nice idea — they're practically mandatory: if you can't review, test, and safely roll out an agent, it eventually turns into an unmanageable mess rather than a system.
+In that model, simply "running an agent" is no longer enough. Declarative agents and skills are not a nice idea but almost a requirement. If you cannot review, test, and ship them safely, the result eventually stops being a system and becomes a zoo.
 
-That's why Identity and Policy had to be extracted as a standalone architectural layer. Environment, on the other hand, had to be moved outside the harness. Dev, Test, and Prod aren't architecture layers — they're deployment contexts. Kubernetes, namespaces, Helm, and NetworkPolicy are the infrastructure environment, not part of the runtime.
+That is why Identity and Policy had to become an explicit architectural layer in my model. Environment, on the other hand, had to move outside the harness. Dev, Test, and Prod are not architectural layers but deployment contexts. Kubernetes, namespaces, Helm, and NetworkPolicy belong to the infrastructure environment, not to the harness runtime.
 
-So I approached it from another angle and shifted to a different level of abstraction: I grouped the cores that could be grouped to simplify assembly, and separated out the parts that can't be reasonably covered by a single open source project. That's how the four layers emerged — allowing you to build a harness from available open source software.
+So instead of mapping Anthropic's cores one to one, I came at it from a different angle and a higher level of abstraction. I grouped the cores that could be grouped to make assembly simpler, and pulled out the parts that cannot be cleanly covered by a single ready made open source project. That is how the four layers came about, the ones that let you assemble a harness from available open source software.
 
-## The Four Layers of the Harness
+## Four layers
 
-1. **Input** — the entry layer.
-2. **Agent Loop (ReAct)** — the agent cycle layer.
-3. **Execution** — the execution layer.
-4. **Identity, Policy & Audit** — the cross-cutting layer for identity, permissions, and audit.
+1. **Input** is the entry layer.
+2. **Agent Loop (ReAct)** is the agent cycle layer.
+3. **Execution** is the execution layer.
+4. **Identity, Policy & Audit** is the cross cutting layer for identity, permissions, and audit.
 
-I'll use these terms consistently from here on.
+These are the terms I will use throughout the rest of the article.
 
-**Input** — the entry layer: human and machine traffic that shouldn't be mixed. A person comes through a browser and SSO; an agent comes through JWT and A2A. An external event (an alert, a CRM webhook) can also be an input — through a webhook into a workflow. Each entry point goes through identity and policy in its own way, and mixing them is unnecessary complexity.
+**Input** is where user traffic, agent traffic, and event driven traffic get separated. A human enters through a browser and SSO, Single Sign On. An agent enters through JWT, JSON Web Token, and A2A, Agent to Agent. External events such as alerts or CRM hooks may enter through a webhook into a workflow. These contours pass through identity and policy differently, so merging them too early only blurs the boundaries and complicates the architecture.
 
-**Agent Loop (ReAct)** — state, event response, choosing the next action. This is where the agent stops being "one request to a model" and becomes a process — with memory, task delegation to other agents, and human-in-the-loop (HITL). Without this layer, an agent is just a stateless function, not a system.
+**Agent Loop (ReAct)** is where state, reaction to events, and next action selection live. Here the agent stops being "one request to a model" and becomes a process with memory, delegation to other agents, and HITL, Human in the Loop. Without this layer the agent is just a stateless function, not a system.
 
-**Execution** — tools, workflows, LLM calls, and controlled access to capabilities. The agent doesn't call backends directly — all traffic passes through a unified security boundary. A tool can be anything: an MCP server, an n8n workflow, an LLM provider behind a model gateway. Execution isn't "a function call" — it's controlled access to capabilities that may themselves be complex orchestrators.
+**Execution** is the layer of managed access to external resources. It includes tools, workflows, and LLM calls, but it is not reducible to a function call. All traffic goes through controlled boundaries, and access to capabilities is limited per tool. That might be an MCP server, an n8n workflow, or an LLM provider. In every case it is access to a capability, not direct reach into a backend.
 
-**Identity, Policy & Audit** — the cross-cutting layer for identity, permissions, control, and investigation. Who is acting? What's allowed? How is it verified? How do you figure out what happened after the fact? Identity and Policy are the gates: deny entry, refuse permission. Audit is the camera: record who did what and when. They work together but serve different purposes — the former protects the system, the latter gives you the ability to investigate when something goes wrong. Without answers to these four questions, a harness is a beautiful but insecure toy. In an enterprise setting, this layer is better off as a separate architectural slice. It makes it easier to separate responsibilities and investigate incidents.
+**Identity, Policy & Audit** is the cross cutting layer for identity, permissions, control, and investigation. It answers four basic questions. Identity and Policy answer who is allowed to do what. Audit answers who actually did what. These functions serve different purposes but have to work together. The first two protect the system, the third lets you investigate incidents. Without this layer the harness stays a pretty but unsafe construction. It is worth calling out as its own architectural slice because it makes separating responsibility and analyzing failures easier.
 
-Data isolation isn't a one-size-fits-all technique. Platform data (tenants, users, audit) is isolated through Row-Level Security in PostgreSQL. Agent runtime data (sessions, state, memory) lives in a different model — namespace-per-tenant, NetworkPolicy, and trusted headers from the gateway.
+I also treat data isolation as a layered concern rather than a single toggle. Platform data can be isolated with PostgreSQL RLS. Agent runtime can be isolated with namespace per tenant and NetworkPolicy. Session and state can be isolated through header scoped boundaries at a trusted gateway. Secrets can be isolated with per tenant paths in Vault.
 
-In this architecture, there are two security boundaries: between layers (the gateway controls who can call what) and within the runtime between tenants (namespaces, NetworkPolicy, trusted headers).
+### Skills are their own thing
 
-### Skills Are Not Execution
+It is worth calling out the nature of skills separately. Skills are pod local capability injection. Practically, that means OCI images with SKILL.md and supporting scripts, mounted into the agent pod at startup. Only the skill metadata enters the prompt path. The full SKILL.md is loaded lazily, only when that specific skill is actually used.
 
-Skills are OCI images with a SKILL.md and scripts that get mounted into the agent's pod at startup. SKILL.md goes into the system prompt; scripts run locally inside the agent's pod via `bash()`. Skills are baked into the agent itself — they're its own capabilities, not external calls.
+Skills live inside the image lifecycle and extend the agent itself, while tools live in the runtime network and expose external capabilities. Those are different operational patterns, and treating them as the same thing makes the design less clear.
 
-Tools (MCP) are a separate Pod/Service — an HTTP call through the gateway, with identity context, CEL policy, and audit on every call.
-
-Different lifecycle, different security boundary: skills are governed at the image level (registry, image pull policy); tools are governed at the gateway level. That's why skills don't appear in the table below among Execution tools — they're pod-local capability injection, not an execution path through the gateway.
-
-## Components by Layer
+## Components in each layer
 
 | Layer | Component | Role |
 |---|---|---|
 | **Input** | Traefik + oauth2-proxy | Reverse proxy auth for browser UI |
-| **Input** | n8n webhook | Machine-traffic entry: external events → MCP endpoint |
-| **Agent Loop (ReAct)** | kagent | Agent CRD lifecycle, A2A, HITL, Memory API |
-| **Agent Loop (ReAct)** | LangGraph | Transition graph inside a BYO agent |
-| **Execution** | FastMCP Pods | MCP tools as K8s resources |
-| **Execution** | n8n (per-tenant) | Integration orchestrator, MCP endpoint |
-| **Execution** | MASMCP (in dev) | Multi-agent orchestrator: MCP servers + registry + LLM routing |
-| **Execution** | LiteLLM | Model gateway: routing, provider abstraction |
-| **Identity, Policy & Audit** | Keycloak | SSO, OIDC/JWT, roles, groups, claim-mappers |
-| **Identity, Policy & Audit** | agentgateway | CEL RBAC, identity injection, rate limit, security boundary |
-| **Identity, Policy & Audit** | Vault / OpenBao | Dynamic secrets, PKI, short-lived credentials |
-| **Identity, Policy & Audit** | External Secrets Operator | Sync Vault → K8s Secrets |
-| **Identity, Policy & Audit** | OTEL + Grafana + Postgres | Audit trail: who, what, how long, result |
+| **Input** | n8n webhook | Machine traffic entry: external events into an MCP endpoint |
+| **Agent Loop (ReAct)** | kagent | Agent CRD, Custom Resource Definition, lifecycle, A2A, HITL, Memory API |
+| **Agent Loop (ReAct)** | LangGraph | Transition graph inside a bring your own agent implementation |
+| **Execution** | FastMCP pods | MCP tools as Kubernetes resources |
+| **Execution** | n8n per tenant | Integration orchestrator, MCP endpoint |
+| **Execution** | LiteLLM | Model gateway for routing and provider abstraction |
+| **Identity, Policy & Audit** | Keycloak | SSO, OIDC, OpenID Connect, JWT, roles, groups, claim mappers |
+| **Identity, Policy & Audit** | agentgateway | CEL RBAC, identity injection, rate limiting, security boundary |
+| **Identity, Policy & Audit** | Vault or OpenBao | Dynamic secrets, PKI, Public Key Infrastructure, short lived credentials |
+| **Identity, Policy & Audit** | External Secrets Operator | Sync Vault into Kubernetes Secrets |
+| **Identity, Policy & Audit** | OTEL + Grafana + Postgres | Audit trail: who, what, how much, outcome |
 
-The boundaries aren't between modules of a single product — they're between groups of components that need to be integrated.
+The boundaries run not between modules but between logically related groups of components.
 
-## How It All Works Together
+## One request across all four layers
 
-Let me show with a concrete example how the four layers handle a single request.
+A concrete example shows how the four layers work together in a single request. Take the pattern from [AI Agents & Agentic Workflows](https://medium.com/towards-applied-generative-ai/ai-agents-agentic-workflows-f558674ee18b). A task comes in, gets distributed across agents, passes through a workflow, and finishes with a review of the result. As a concrete engineering example: add a new validation to an API method, update the tests, and prepare the resulting diff for review.
 
-A user sends a message via Telegram: "restart service X."
+![Enterprise AI Harness wrkflow](../../diagrams/enterprise-ai-harness-workflow.png)
 
-**Input + Identity:** The Telegram bot receives the message → requests a JWT from Keycloak → the request goes through agentgateway. agentgateway validates the token, checks the CEL policy (`tenant_id == it AND role == operator`), injects `X-User-Id` and `X-Tenant-Id` headers, writes an OTEL trace — and routes to the agent.
+**Input and Identity.** The task arrives from Telegram, Jira, a Web UI, or another working channel and immediately becomes a structured task rather than a chat message. A Telegram bot or frontend obtains a JWT from Keycloak and forwards the request through agentgateway. The gateway validates the token, checks CEL policy, injects trusted headers, writes an OTEL trace, and hands the agent a trusted identity context. Who placed the task, which tenant it came from, and with which permissions it can be executed.
 
-**Agent Loop (ReAct):** kagent starts a session, sees the context (who, which tenant, which role). A restart operation is dangerous — HITL kicks in: the agent asks the human for confirmation. The human confirms → the agent delegates the task to a sub-agent (k8s-sre-agent) via A2A, again through agentgateway with the same checks and tracing.
+**Agent Loop (ReAct).** kagent raises a session and works not with raw text but with task context: the goal, constraints, available scope, completion criteria, and available agent roles. Through agentgateway it determines which sub agents are available, for example analyst, implementer, and reviewer, and walks the task through the chain of task to agents to flow to review. One agent clarifies requirements and builds a plan, another makes the changes, and a third runs an independent check of the result.
 
-**Execution:** k8s-sre-agent calls ssh-tools MCP → agentgateway requests dynamic credentials from Vault (TTL 5 min, auto-revoke) → the agent gets access to the cluster but never sees the secret → executes `kubectl restart`. The tool call is logged with identity context.
+**Execution.** Each sub agent gets only its allowed set of capabilities and tools through agentgateway, and access to MCP tools and backend services goes through a controlled access path. What the agent can do is bounded by policy, scope, approval, and network isolation. The agent can change only allowed files, run only allowed checks, and never holds permanent access to secrets. When credentials are needed, they are issued as short lived credentials with TTL and auto revocation.
 
-**Identity, Policy & Audit** — the cross-cutting layer: at every step — who (JWT claims), what's allowed (CEL), what happened (OTEL). The agent never sees secrets; access is issued through Vault and revoked after 5 minutes.
+**Identity, Policy & Audit** runs as a cross cutting layer across the whole route. At every step the system records who initiated the action through JWT claims, what the policy allowed through CEL, which agent performed exactly what, and which checks were passed through OTEL traces and audit events. The agent never sees secrets directly. Access is granted through Vault or another secret broker and then automatically revoked, which keeps reasoning, execution, and privileged access cleanly separated.
 
-I didn't write any of these parts myself. Everything is assembled from open source and connected through layer boundaries.
+## What comes next
 
-## What Comes Next
+Each layer deserves its own breakdown, from specific components to the seams between them. That does not fit in one article, so the next pieces will go through the layers one by one, from the input and identity boundary to the agent loop and execution layer, and show how an open source zoo turns into something you can call a harness.
 
-Each layer deserves its own deep dive — from specific components to how they connect. That won't fit in one article, so I'll cover the layers individually: from input and identity boundaries to the agent loop and execution layer — showing how an open source collection becomes what you could call a harness.
+Over the last year an enormous number of new projects have appeared around agent systems. But the problem today is no longer how to write one more agent. It is how to safely run hundreds of agents in production. To me, the harness feels like the level of abstraction that could do for agent systems what Kubernetes did for containers.
 
-Over the past few months, an enormous number of new projects have appeared around agent systems. But the problem today is no longer how to build yet another agent — it's how to safely run hundreds of agents in production. I think the harness will become for agent systems what Kubernetes became for containers.
+This is not a final architectural truth. It is a working reference architecture for building a self hosted Enterprise AI Harness on Kubernetes. A2A interaction and audit are still being refined, and load testing has not been run. But the basic chains are assembled, and the security boundaries between layers and inside the runtime are drawn explicitly. The work ahead is not inventing new entities but polishing policy, routes, and operational reliability.
 
-This isn't a final architectural truth — it's a working reference architecture for building a self-hosted Enterprise AI Harness on Kubernetes. A2A interactions and audit are still being refined; load testing hasn't been done yet. But the basic chains are assembled, and security boundaries — between layers and within the runtime — are drawn explicitly. The work ahead isn't about inventing new entities — it's about refining policies, routes, and operational reliability.
-
-## Project Repository
-
-This article is the first part of an ongoing series on Enterprise AI Harness — a reference architecture for building self-hosted enterprise AI agent systems on Kubernetes.
-
-The repository evolves together with the article series and gradually publishes architecture documentation, design decisions, diagrams, implementation artifacts, and reusable configurations. It's a living engineering reference, not a product.
-
-**[github.com/vasiache/enterprise-ai-harness](https://github.com/vasiache/enterprise-ai-harness)**
-
----
-
-If you're building enterprise AI infrastructure and wrestling with similar boundaries — identity propagation, tenant isolation, execution security — I'd be interested to hear how you're approaching these problems. The next articles will cover each layer in depth: input boundary, identity and policy, agent loop, and execution. Follow along if you want to see how the pieces fit together.
+The notion of a harness is still unsettled. Different teams arrive at different boundaries, and that is normal. If you have built an agent wrapper or simply thought about which layers are mandatory and which you can live without, share your experience in the comments.
