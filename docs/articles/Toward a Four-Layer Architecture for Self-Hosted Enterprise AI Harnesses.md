@@ -8,7 +8,7 @@ This article is not about another agent runtime or orchestration framework.
 
 Anthropic describes the runtime around an agent. Open-source projects implement individual capabilities such as routing, memory, identity, and tool execution.
 
-The problem addressed here is different: **where should the architectural boundaries of a self-hosted enterprise AI harness actually be drawn?**
+The problem addressed here is different. **where should the architectural boundaries of a self-hosted enterprise AI harness actually be drawn?**
 
 The four layers presented below are not software components. They are architectural boundaries. Rather than proposing another framework, this article aims to open a discussion about how those boundaries should be drawn in self-hosted enterprise AI harnesses. The model presented here is one possible architectural frame for that discussion.
 
@@ -32,9 +32,9 @@ The result is a reference architecture for a self-hosted Enterprise AI Harness o
 
 Two concerns cut across the whole system and do not belong to a single layer. Multi tenancy affects both runtime and data isolation. Kubernetes native deployment defines the operating context rather than the harness itself.
 
-> It is not a product
+> It is not a product.
 
-> and not a framework.
+> And not a framework.
 
 > It is a reference architecture.
 
@@ -104,7 +104,7 @@ A concrete example shows the four layers in a single request. Take the pattern f
 
 **Execution:** Each sub agent gets only its allowed set of capabilities and tools through agentgateway. Access to MCP tools and backend services goes through a controlled access path. What the agent can do is bounded by policy, scope, approval, and network isolation. The agent can change only allowed files, run only allowed checks, and never holds permanent access to secrets. When credentials are needed, they are issued as short lived credentials with TTL and auto revocation.
 
-**Identity, Policy & Audit:** runs as a cross cutting layer across the whole route. At every step the system records who initiated the action through JWT claims, what the policy allowed through CEL, which agent performed exactly what, and which checks were passed through OTEL traces and audit events. The agent never sees secrets directly. Access is granted through Vault or another secret broker and then revoked. That keeps reasoning, execution, and privileged access cleanly separated.
+**Identity, Policy & Audit:** the cross cutting layer across the whole route. At every step the system records who initiated the action through JWT claims, what the policy allowed through CEL, which agent performed exactly what, and which checks were passed through OTEL traces and audit events. The agent never sees secrets directly. Access is granted through Vault or another secret broker and then revoked. That keeps reasoning, execution, and privileged access cleanly separated.
 
 ---
 
