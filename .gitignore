@@ -1,1 +1,15 @@
+# Local notes / scratch
 .docs/
+
+# Local closed-source reference tree — not part of this public repository
+multitenant-agent-k8s/
+
+# Editor / local tooling
+.vscode/
+.idea/
+.cursor/
+.codegraph/
+.claude/settings.local.json
+
+# OS
+.DS_Store
