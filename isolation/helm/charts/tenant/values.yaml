@@ -1,0 +1,82 @@
+tenant:
+  id: ""
+  displayName: ""
+
+global:
+  kagentUrl: "http://kagent-controller.kagent.svc.cluster.local:8083"
+  imagePullPolicy: IfNotPresent
+
+echoAgent:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+managementAgent:
+  enabled: true
+  agentName: "management-agent"
+
+tenantInfoTool:
+  enabled: true
+  image: "localhost:5001/tenant-info-tool:latest"
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+openai:
+  apiKey: ""
+  model: "gpt-4o-mini"
+  baseUrl: ""
+
+postgres:
+  host: "postgres.platform.svc.cluster.local"
+  port: 5432
+  database: postgres
+  password: ""
+  appUserPassword: ""
+
+quota:
+  requests:
+    cpu: "400m"
+    memory: "2Gi"
+  limits:
+    cpu: "6"
+    memory: "6Gi"
+  pods: "20"
+
+orgs:
+  - id: management
+    botEnabled: false
+  - id: sales
+    botEnabled: false
+
+tgBot:
+  enabled: true
+  image: "localhost:5001/tg-bot:latest"
+  httpsProxy: ""
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 512Mi
+
+orderTracker:
+  enabled: false
+  image: "localhost:5001/order-tracker:latest"
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gotrue
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform.labels" . | nindent 4 }}
+    app: gotrue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gotrue
+  template:
+    metadata:
+      labels:
+        app: gotrue
+        {{- include "platform.labels" . | nindent 8 }}
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: {{ .Values.postgres.image }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h {{ include "platform.postgresHost" . }} -p {{ .Values.postgres.port }} -U supabase_admin; do
+                echo "waiting for postgres..."
+                sleep 3
+              done
+              echo "postgres is ready"
+      containers:
+        - name: gotrue
+          image: {{ .Values.gotrue.image }}
+          ports:
+            - containerPort: {{ .Values.gotrue.port }}
+              name: http
+          env:
+            - name: GOTRUE_DB_DRIVER
+              value: postgres
+            - name: GOTRUE_DB_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: gotrue-credentials
+                  key: GOTRUE_DB_DATABASE_URL
+            - name: GOTRUE_DB_AUTOMIGRATE
+              value: "true"
+            - name: GOTRUE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gotrue-credentials
+                  key: GOTRUE_JWT_SECRET
+            - name: GOTRUE_JWT_ADMIN_ROLES
+              value: {{ .Values.gotrue.jwtAdminRoles | quote }}
+            - name: GOTRUE_JWT_AUD
+              value: {{ .Values.gotrue.jwtAud | quote }}
+            - name: GOTRUE_JWT_DEFAULT_GROUP_NAME
+              value: "authenticated"
+            - name: GOTRUE_JWT_EXP
+              value: {{ .Values.gotrue.jwtExp | quote }}
+            - name: GOTRUE_API_HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: {{ .Values.gotrue.port | quote }}
+            - name: API_EXTERNAL_URL
+              value: {{ .Values.gotrue.siteUrl | quote }}
+            - name: GOTRUE_SITE_URL
+              value: {{ .Values.gotrue.siteUrl | quote }}
+            - name: GOTRUE_URI_ALLOW_LIST
+              value: "*"
+            - name: GOTRUE_DISABLE_SIGNUP
+              value: {{ .Values.gotrue.disableSignup | quote }}
+            - name: GOTRUE_MAILER_AUTOCONFIRM
+              value: {{ .Values.gotrue.autoConfirmUsers | quote }}
+            - name: GOTRUE_EXTERNAL_EMAIL_ENABLED
+              value: "true"
+          resources:
+            {{- toYaml .Values.gotrue.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10

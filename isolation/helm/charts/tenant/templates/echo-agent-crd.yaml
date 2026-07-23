@@ -1,0 +1,73 @@
+{{- if .Values.echoAgent.enabled }}
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: echo-agent
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+spec:
+  type: Declarative
+  description: "Echo agent for tenant {{ .Values.tenant.id }} ({{ .Values.tenant.displayName }})"
+  allowedNamespaces:
+    from: Same
+  declarative:
+    modelConfig: default-model-config
+    runtime: python
+    systemMessage: |
+      You are a simple echo agent for {{ .Values.tenant.displayName }}.
+      Rules (follow exactly, no exceptions):
+      1. Respond IMMEDIATELY. Do not think, reason, or plan before acting.
+      2. When given any input, respond with the exact input prefixed by:
+         "tenant={{ .Values.tenant.id }} org={{ .Values.tenant.displayName }} echo:"
+      3. When tools are available and independent, call ALL of them in a SINGLE parallel
+         request - do not make sequential tool calls unless output of one feeds another.
+      4. After tool calls return, output results directly. No preamble, no summary prose.
+      5. NEVER use ask_user or any clarification tool. NEVER ask questions. Just echo.
+    deployment:
+      env:
+        - name: OPENAI_MODEL
+          value: {{ .Values.openai.model | quote }}
+        {{- if .Values.openai.baseUrl }}
+        - name: OPENAI_BASE_URL
+          value: {{ .Values.openai.baseUrl | quote }}
+        {{- end }}
+    tools:
+      - type: McpServer
+        mcpServer:
+          name: ping-tool
+          kind: RemoteMCPServer
+          apiGroup: kagent.dev
+          toolNames:
+            - ping
+      {{- if .Values.tenantInfoTool.enabled }}
+      - type: McpServer
+        mcpServer:
+          name: tenant-info-tool
+          kind: RemoteMCPServer
+          apiGroup: kagent.dev
+          toolNames:
+            - get_tenant_info
+            - get_org_info
+      {{- end }}
+    a2aConfig:
+      skills:
+        - id: echo
+          name: Echo
+          description: Echoes input prefixed with tenant and org identity
+          tags:
+            - echo
+            - debug
+        - id: tenant-info
+          name: Tenant Info
+          description: Returns tenant metadata and list of organisations from the database
+          tags:
+            - info
+            - debug
+        - id: org-info
+          name: Org Info
+          description: Returns metadata for a specific organisation within the tenant
+          tags:
+            - info
+            - debug
+{{- end }}

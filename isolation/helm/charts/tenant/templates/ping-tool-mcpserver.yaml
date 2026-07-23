@@ -1,0 +1,18 @@
+{{/*
+  RemoteMCPServer for ping-tool (deployed in ns:shared-tools).
+  URL points to the cross-namespace ClusterIP service.
+  kagent uses this to discover the ping() tool and make it available
+  to agents in this tenant namespace.
+*/}}
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: ping-tool
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+spec:
+  url: "http://ping-tool.shared-tools.svc.cluster.local:8000/mcp"
+  timeout: 10s
+  sseReadTimeout: 30s
+  description: "Shared health-check tool - returns {status: ok, timestamp}"

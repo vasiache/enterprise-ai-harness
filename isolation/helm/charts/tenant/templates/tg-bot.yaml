@@ -1,0 +1,69 @@
+{{- if .Values.tgBot.enabled }}
+{{- include "tenant.assertTgBotDeps" . }}
+{{- range .Values.orgs }}
+{{- if .botEnabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tg-bot-{{ .id }}
+  namespace: {{ include "tenant.namespace" $ }}
+  labels:
+    {{- include "tenant.labels" $ | nindent 4 }}
+    app: tg-bot-{{ .id }}
+    channel: telegram
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tg-bot-{{ .id }}
+  template:
+    metadata:
+      labels:
+        app: tg-bot-{{ .id }}
+        channel: telegram
+        {{- include "tenant.labels" $ | nindent 8 }}
+    spec:
+      containers:
+        - name: tg-bot
+          image: {{ $.Values.tgBot.image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          env:
+            - name: BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tg-bot-{{ .id }}-secret
+                  key: BOT_TOKEN
+            - name: TENANT_ID
+              value: {{ $.Values.tenant.id | quote }}
+            - name: ORG_ID
+              value: {{ .id | quote }}
+            - name: AGENT_NAME
+              value: {{ $.Values.managementAgent.agentName | default "management-agent" | quote }}
+            - name: KAGENT_URL
+              value: {{ $.Values.global.kagentUrl | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-info-tool-db-secret
+                  key: url
+            {{- if $.Values.tgBot.httpsProxy }}
+            - name: HTTPS_PROXY
+              value: {{ $.Values.tgBot.httpsProxy | quote }}
+            - name: https_proxy
+              value: {{ $.Values.tgBot.httpsProxy | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml $.Values.tgBot.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import os,sys; sys.exit(0 if any(b'tg_bot.main' in open(f'/proc/{p}/cmdline','rb').read() for p in os.listdir('/proc') if p.isdigit()) else 1)"
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 3
+{{- end }}
+{{- end }}
+{{- end }}

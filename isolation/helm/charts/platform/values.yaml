@@ -1,0 +1,35 @@
+postgres:
+  image: supabase/postgres:15.6.1.143
+  port: 5432
+  database: postgres
+  superuserPassword: "changeme-superuser"
+  appUserPassword: "changeme-appuser"
+  authAdminPassword: "changeme-authadmin"
+  storage:
+    size: 2Gi
+    storageClass: ""   # "" = default cluster storage class
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+gotrue:
+  image: supabase/gotrue:v2.151.0
+  port: 9999
+  jwtSecret: "super-secret-jwt-token-min-32-chars-dev-only"
+  jwtAdminRoles: "service_role"
+  jwtAud: "authenticated"
+  jwtExp: "3600"
+  siteUrl: "http://localhost:3000"
+  autoConfirmUsers: true
+  disableSignup: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

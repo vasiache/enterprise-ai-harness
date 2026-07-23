@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tenant-openai
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  OPENAI_API_KEY: {{ .Values.openai.apiKey | quote }}
+---
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: default-model-config
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+spec:
+  provider: "OpenAI"
+  model: {{ .Values.openai.model | quote }}
+  apiKeySecret: tenant-openai
+  apiKeySecretKey: OPENAI_API_KEY
+  {{- if .Values.openai.baseUrl }}
+  openAI:
+    baseUrl: {{ .Values.openai.baseUrl | quote }}
+  {{- end }}

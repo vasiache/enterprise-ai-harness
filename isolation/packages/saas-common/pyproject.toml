@@ -1,0 +1,41 @@
+[project]
+name = "saas-common"
+version = "0.1.0"
+description = "Shared library for SaaS agent platform - DB, auth, base classes"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncpg>=0.29",
+    "pydantic>=2.0",
+    "httpx>=0.25",
+    "structlog>=24.0",
+    "python-jose[cryptography]>=3.3",
+]
+
+[project.optional-dependencies]
+agent = [
+    "langgraph>=0.6.5",
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    "a2a-sdk>=0.3.23",
+    "kagent-langgraph>=0.1.0",
+    "uvicorn>=0.20",
+]
+tool = [
+    "fastmcp>=2.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[tool.uv.sources]
+kagent-langgraph = { path = "../../kagent/python/packages/kagent-langgraph" }
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["saas_common*"]

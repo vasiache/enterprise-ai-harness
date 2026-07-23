@@ -1,0 +1,8 @@
+apiVersion: v2
+name: platform
+description: >
+  SaaS Agent Platform - Supabase (Postgres + GoTrue) for the platform namespace.
+  Vault and ArgoCD are installed separately via setup-kind.sh.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

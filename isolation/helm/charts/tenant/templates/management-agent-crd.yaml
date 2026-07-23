@@ -1,0 +1,47 @@
+{{- if .Values.managementAgent.enabled }}
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: management-agent
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+    multitenant-agent-k8s/org: management
+spec:
+  type: Declarative
+  description: "Management agent for tenant {{ .Values.tenant.id }} - calls echo-agent as a tool (cross-org)"
+  allowedNamespaces:
+    from: Same
+  declarative:
+    modelConfig: default-model-config
+    runtime: python
+    systemMessage: |
+      You are a management assistant for {{ .Values.tenant.displayName }}.
+      You have access to the echo agent (sales org) as a tool.
+      When asked to ping or test the sales agent, call the echo-agent tool.
+      Always report which tenant and org you are in.
+
+      When asked to gather information from multiple independent sources,
+      call the corresponding tools in parallel (in one request and in one round).
+      Only call tools sequentially when the result of one is needed as input for another.
+    deployment:
+      env:
+        - name: OPENAI_MODEL
+          value: {{ .Values.openai.model | quote }}
+        {{- if .Values.openai.baseUrl }}
+        - name: OPENAI_BASE_URL
+          value: {{ .Values.openai.baseUrl | quote }}
+        {{- end }}
+    tools:
+      - type: Agent
+        agent:
+          name: echo-agent
+          namespace: {{ include "tenant.namespace" . }}
+    a2aConfig:
+      skills:
+        - id: management
+          name: Management
+          description: Management assistant with access to sales echo-agent
+          tags:
+            - management
+{{- end }}

@@ -1,0 +1,97 @@
+{{- if .Values.tenantInfoTool.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-info-tool
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+    app: tenant-info-tool
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tenant-info-tool
+  template:
+    metadata:
+      labels:
+        app: tenant-info-tool
+        {{- include "tenant.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: tenant-info-tool
+          image: {{ .Values.tenantInfoTool.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: TENANT_ID
+              value: {{ .Values.tenant.id | quote }}
+            - name: TENANT_DISPLAY_NAME
+              value: {{ .Values.tenant.displayName | quote }}
+            - name: AGENT_NAME
+              value: "tenant-info-tool"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-info-tool-db-secret
+                  key: url
+          resources:
+            {{- toYaml .Values.tenantInfoTool.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenant-info-tool
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+    app: tenant-info-tool
+spec:
+  selector:
+    app: tenant-info-tool
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tenant-info-tool-db-secret
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+type: Opaque
+stringData:
+  url: "postgresql://app_user:{{ .Values.postgres.appUserPassword }}@{{ .Values.postgres.host }}:{{ .Values.postgres.port }}/{{ .Values.postgres.database }}"
+---
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: tenant-info-tool
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+spec:
+  url: "http://tenant-info-tool.{{ include "tenant.namespace" . }}.svc.cluster.local:8000/mcp"
+  timeout: 15s
+  sseReadTimeout: 30s
+  description: "Per-tenant tool - returns tenant metadata from platform.tenants (RLS-scoped)"
+{{- end }}

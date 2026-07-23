@@ -1,0 +1,23 @@
+[project]
+name = "tenant-info-tool"
+version = "0.1.0"
+description = "Per-tenant MCP tool: returns tenant info from platform.tenants"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.3.0",
+    "asyncpg>=0.29.0",
+    "saas-common",
+]
+
+[project.scripts]
+tenant-info-tool = "tenant_info_tool.server:main"
+
+[tool.uv.sources]
+saas-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tenant
+description: SaaS Agent - per-tenant namespace with NetworkPolicy, ResourceQuota and kagent Agent CRD
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

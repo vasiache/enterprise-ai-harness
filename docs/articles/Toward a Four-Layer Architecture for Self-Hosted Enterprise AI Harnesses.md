@@ -2,7 +2,7 @@
 
 #### There is no shortage of articles about building AI agents. What remains much rarer is a practical discussion of how to run them safely in production.
 
-![A practical architecture frame](../../diagrams/preview.png)
+![A practical architecture frame](../diagrams/preview.png)
 
 This article is not about another agent runtime or orchestration framework.
 
@@ -28,7 +28,7 @@ How does user identity survive all the way to an MCP call? Where does the agent 
 
 The result is a reference architecture for a self-hosted Enterprise AI Harness on Kubernetes, with four functional layers and clear integration boundaries between them.
 
-![Enterprise AI Harness Architecture](../../diagrams/architecture.png)
+![Enterprise AI Harness Architecture](../diagrams/architecture.png)
 
 Two concerns cut across the whole system and do not belong to a single layer. Multi tenancy affects both runtime and data isolation. Kubernetes native deployment defines the operating context rather than the harness itself.
 
@@ -86,7 +86,7 @@ Skills live inside the image lifecycle and extend the agent itself. Tools live i
 
 **Components in each layer**
 
-![Enterprise AI Harness components](../../diagrams/components.png)
+![Enterprise AI Harness components](../diagrams/components.png)
 
 The boundaries run not between modules but between logically related groups of components.
 
@@ -96,7 +96,7 @@ The boundaries run not between modules but between logically related groups of c
 
 A concrete example shows the four layers in a single request. Take the pattern from [AI Agents & Agentic Workflows](https://medium.com/towards-applied-generative-ai/ai-agents-agentic-workflows-f558674ee18b). A task comes in, gets distributed across agents, passes through a workflow, and finishes with a review of the result. As an engineering example: add a new validation to an API method, update the tests, and prepare the resulting diff for review.
 
-![Enterprise AI Harness workflow](../../diagrams/workflow.png)
+![Enterprise AI Harness workflow](../diagrams/workflow.png)
 
 **Input and Identity:** The task arrives from Telegram, Jira, a Web UI, or another working channel. It immediately becomes a structured task rather than a chat message. A Telegram bot or frontend obtains a JWT from Keycloak and forwards the request through agentgateway. The gateway validates the token, checks CEL policy, injects trusted headers, writes an OTEL trace, and hands the agent a trusted identity context. Who placed the task, which tenant it came from, and with which permissions it can be executed.
 

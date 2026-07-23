@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shared-tools
+description: SaaS Agent - shared MCP tool servers deployed once for all tenants (ns:shared-tools)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

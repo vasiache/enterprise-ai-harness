@@ -1,0 +1,15 @@
+[project]
+name = "ping-tool"
+version = "0.1.0"
+description = "Shared MCP tool: ping - health check for the MCP channel"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.3.0",
+]
+
+[project.scripts]
+ping-tool = "ping_tool.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

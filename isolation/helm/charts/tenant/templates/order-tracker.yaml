@@ -1,0 +1,97 @@
+{{- if .Values.orderTracker.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-tracker
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+    app: order-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-tracker
+  template:
+    metadata:
+      labels:
+        app: order-tracker
+        {{- include "tenant.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: order-tracker
+          image: {{ .Values.orderTracker.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: TENANT_ID
+              value: {{ .Values.tenant.id | quote }}
+            - name: TENANT_DISPLAY_NAME
+              value: {{ .Values.tenant.displayName | quote }}
+            - name: AGENT_NAME
+              value: "order-tracker"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: order-tracker-db-secret
+                  key: url
+          resources:
+            {{- toYaml .Values.orderTracker.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-tracker
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+    app: order-tracker
+spec:
+  selector:
+    app: order-tracker
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: order-tracker-db-secret
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+type: Opaque
+stringData:
+  url: "postgresql://app_user:{{ .Values.postgres.appUserPassword }}@{{ .Values.postgres.host }}:{{ .Values.postgres.port }}/{{ .Values.postgres.database }}"
+---
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: order-tracker
+  namespace: {{ include "tenant.namespace" . }}
+  labels:
+    {{- include "tenant.labels" . | nindent 4 }}
+spec:
+  url: http://order-tracker:8000/mcp
+  timeout: 15s
+  sseReadTimeout: 30s
+  description: "Per-tenant CRM tool - create and track sales leads (orders.leads)"
+{{- end }}

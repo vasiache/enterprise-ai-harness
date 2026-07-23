@@ -1,0 +1,26 @@
+
+postgres:
+  superuserPassword: "postgres"
+  appUserPassword: "apppassword"
+  authAdminPassword: "supabase_admin"
+  storage:
+    size: 500Mi
+    storageClass: "standard"   # Kind default (local-path)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+gotrue:
+  siteUrl: "http://localhost:3000"
+  autoConfirmUsers: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
