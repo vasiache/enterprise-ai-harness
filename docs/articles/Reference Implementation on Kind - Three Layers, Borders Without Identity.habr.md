@@ -63,9 +63,7 @@
 - **kagent `allowedNamespaces.from: Same`** — cross-tenant deny на уровне agent loop.
 - **Пер-тенантные секреты** — токены мимо Helm values и истории релизов.
 
-### 1. Namespace на тенант
-
-Один namespace = один тенант.
+### 1. Один namespace = один тенант
 
 Это самая грубая, но самая важная граница. Агенты не делят pod между отделами или организациями, а tenant namespace маркируется label'ами, которые затем используются в NetworkPolicy.
 
