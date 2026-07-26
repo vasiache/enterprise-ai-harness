@@ -1,9 +1,9 @@
 """Tests for TenantDB RLS wrapper.
 
-Key invariant: TenantDB must always SET LOCAL app.tenant_id inside a
-transaction before executing the actual SQL. Without this, RLS policies
-return 0 rows (our fail-safe), but we want the wrapper to enforce it
-at the API level too.
+Key invariant: TenantDB must always set app.tenant_id (via set_config
+with local=true, scoped to the current transaction) before executing
+the actual SQL. Without this, RLS policies return 0 rows (our
+fail-safe), but we want the wrapper to enforce it at the API level too.
 """
 
 from unittest.mock import AsyncMock, MagicMock, call
@@ -37,10 +37,12 @@ async def test_query_sets_tenant_id_before_fetch(mock_pool):
     pool, conn = mock_pool
     db = TenantDB(pool)
 
-    await db.query("SELECT * FROM rag.embeddings WHERE tenant_id = $1", ["furnco"], tenant_id="furnco")
+    await db.query(
+        "SELECT * FROM platform.users WHERE tenant_id = $1", ["furnco"], tenant_id="furnco"
+    )
 
     calls = conn.execute.call_args_list
-    assert calls[0] == call("SET LOCAL app.tenant_id = $1", "furnco")
+    assert calls[0] == call("SELECT set_config('app.tenant_id', $1, true)", "furnco")
 
 
 @pytest.mark.asyncio
@@ -63,7 +65,7 @@ async def test_execute_sets_tenant_id_before_dml(mock_pool):
     )
 
     calls = conn.execute.call_args_list
-    assert calls[0] == call("SET LOCAL app.tenant_id = $1", "furnco")
+    assert calls[0] == call("SELECT set_config('app.tenant_id', $1, true)", "furnco")
 
 
 @pytest.mark.asyncio

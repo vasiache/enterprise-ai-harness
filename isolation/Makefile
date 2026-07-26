@@ -8,7 +8,7 @@ help:
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
 
-up: ## Spin up Kind cluster + platform stack (kagent + Supabase + Vault + Argo)
+up: ## Spin up Kind cluster + platform stack (kagent + Postgres + GoTrue + shared-tools)
 	scripts/setup-kind.sh
 
 down: ## Tear down Kind cluster (registry сохраняется - образы не пересобираются при up)

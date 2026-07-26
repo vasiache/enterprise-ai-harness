@@ -13,7 +13,7 @@ the subject of the next article.
 > Row-Level Security.
 
 > **What this is not.** Not production. Not a product. No AgentGateway, no JWT, no
-> audit, no per-tenant Vault RBAC. Vault runs in dev mode. Isolation here is
+> audit, no Vault, no per-tenant secret broker. Isolation here is
 > *borders without identity*: tenants are separated, but the system does not yet
 > know *who* a user is within a tenant.
 
@@ -52,18 +52,19 @@ cp .env.example .env
 make up            # = bash scripts/setup-kind.sh
 ```
 
-`setup-kind.sh` is an orchestrator that runs seven idempotent steps in order.
+`setup-kind.sh` is an orchestrator that runs five idempotent steps in order.
 Every step is also runnable standalone (`bash scripts/cluster/04_migrations.sh`).
 
 | Step | Script | What it does |
 |---|---|---|
-| 01 | `cluster/01_kind.sh` | Kind cluster (`v1.32.0`), local registry on `:5001`, containerd mirror config, namespaces (`kagent`, `platform`, `argocd`, `shared-tools`), pre-pull all images |
-| 02 | `cluster/02_vault.sh` | HashiCorp Vault in **dev mode** (root token `root`, no persistence) |
+| 01 | `cluster/01_kind.sh` | Kind cluster (`v1.32.0`), local registry on `:5001`, containerd mirror config, namespaces (`kagent`, `platform`, `shared-tools`), pre-pull all images |
 | 03 | `cluster/03_platform.sh` | Platform Helm chart: Postgres 15 + GoTrue (auth) in `platform` ns, waits for `Available` |
 | 04 | `cluster/04_migrations.sh` | Apply `supabase/migrations/0001–0008.sql` via `kubectl exec psql`; create `kagent` DB + role |
 | 05 | `cluster/05_kagent.sh` | kagent CRDs + kagent (OCI Helm), pointed at the external Postgres (`postgres.platform.svc`) |
-| 06 | `cluster/06_argocd.sh` | Argo CD (GitOps; used for tenant chart promotion) |
 | 07 | `cluster/07_tools.sh` | Build tool/bot images (`build-tools.sh`, smart rebuild by source hash), load into Kind, deploy `shared-tools` |
+
+Steps `02` (Vault) and `06` (Argo CD) are reserved for later stages and **not
+run** in this implementation. `setup-kind.sh` runs 01, 03, 04, 05, 07 only.
 
 After `make up` the platform and shared layers are up but **no tenants exist yet**.
 Tenants are created and deployed separately. That is the whole point of the
@@ -123,7 +124,7 @@ NetworkPolicy selectors. See [namespace.yaml](helm/charts/tenant/templates/names
 [networkpolicy.yaml](helm/charts/tenant/templates/networkpolicy.yaml) starts from
 `deny-all` (Ingress + Egress) and opens only what is needed:
 
-- egress to `platform` ns (Postgres, GoTrue, Vault)
+- egress to `platform` ns (Postgres, GoTrue)
 - egress to `kagent` ns (A2A controller)
 - egress to `shared-tools` ns (ping-tool and other shared MCP servers)
 - egress to `kube-system` DNS (port 53)
@@ -144,32 +145,43 @@ cannot reach a pod in `tenant-beta`.
   `USING (tenant_id = current_setting('app.tenant_id', true))`.
 - `current_setting(..., true)` with `missing_ok=true` is **mandatory**. Without it
   Postgres raises instead of returning zero rows.
-- Fail-safe: `ALTER DATABASE postgres SET app.tenant_id = ''`. If `SET LOCAL` is
-  forgotten, the query returns zero rows rather than leaking across tenants.
+- Fail-safe: `ALTER DATABASE postgres SET app.tenant_id = ''`. If the tenant
+  context is forgotten, the query returns zero rows rather than leaking across
+  tenants. Caveat: the GUC applies only to **new** connections, so the RLS
+  migration (`04_migrations.sh`) must run before the tool pods start their pools
+  (`07_tools.sh`). In this reference that ordering is enforced by `setup-kind.sh`.
 
 ### 4. TenantDB: the mandatory RLS wrapper
 [supabase_client.py](packages/saas-common/saas_common/supabase_client.py) wraps every
-query in an explicit transaction and sets `app.tenant_id` via `SET LOCAL`:
+query in an explicit transaction and sets `app.tenant_id` via
+`set_config('app.tenant_id', $1, true)`:
 
 ```python
 async with conn.transaction():
-    await conn.execute(f"SET LOCAL \"app.tenant_id\" = '{tenant_id}'")
+    await conn.execute("SELECT set_config('app.tenant_id', $1, true)", tenant_id)
     return await conn.fetch(sql, *params)
 ```
 
-Two non-obvious gotchas are documented in the code.
+Three non-obvious gotchas are documented in the code.
 
-`SET LOCAL` is scoped to the current transaction. asyncpg runs each statement in
-its own implicit transaction, so `SET LOCAL` vanishes before the next `fetch()`
-unless both are wrapped in an explicit `BEGIN…COMMIT`.
+`set_config(..., true)` (the functional equivalent of `SET LOCAL`) is scoped to
+the current transaction. asyncpg runs each statement in its own implicit
+transaction, so the context vanishes before the next `fetch()` unless both are
+wrapped in an explicit `BEGIN…COMMIT`.
+
+`SET` in Postgres does not accept bind parameters, so interpolating `tenant_id`
+into SQL text would be an injection vector. `set_config` with `$1` avoids that
+without giving up parameterization.
 
 The pool is created with `statement_cache_size=0`. asyncpg caches prepared
-statements **outside** the `SET LOCAL` transaction, so Postgres evaluates schema
+statements **outside** the tenant transaction, so Postgres evaluates schema
 permissions without a tenant context and raises `InsufficientPrivilegeError` on
 RLS-protected schemas.
 
-Direct `asyncpg` calls bypass RLS and leak across tenants. **Never use them.**
-All DB access goes through `TenantDB`.
+Direct `asyncpg` calls bypass RLS and leak across tenants, so **in the request
+path** all DB access goes through `TenantDB`. The onboarding admin scripts
+(`scripts/admin/`) connect under a separate admin role with `BYPASSRLS`; that is
+a legitimate ops path, not part of the request cycle.
 
 ### 5. kagent cross-tenant deny
 Every `Agent` CRD sets `allowedNamespaces.from: Same`, so an agent can only be
@@ -179,8 +191,9 @@ controller-level deny. NetworkPolicy is the second layer.
 ### 6. Per-tenant secrets
 Bot tokens live in `platform.orgs.tg_bot_token` (DB) and are materialized into
 per-namespace Kubernetes Secrets at deploy time, bypassing Helm values entirely.
-Vault is wired but runs in dev mode only in this stage. Per-tenant path RBAC is
-planned with the Identity layer.
+Vault is **not deployed** in this stage; `packages/saas-common/saas_common/vault_client.py`
+exists as scaffolding for the Identity layer but no pod mounts `/vault/secrets`.
+Per-tenant path RBAC is planned with the Identity layer.
 
 ---
 
@@ -199,8 +212,8 @@ A Telegram message to a tenant's bot:
    single round.
 3. **Execution.** The agent calls MCP tools via `RemoteMCPServer` CRDs.
    `tenant-info-tool` / `order-tracker` run in the tenant namespace, read
-   `TENANT_ID` from env, and route every query through `TenantDB` to `SET LOCAL
-   app.tenant_id` to RLS-scoped rows.
+   `TENANT_ID` from env, and route every query through `TenantDB` to
+   `set_config('app.tenant_id', ...)` to RLS-scoped rows.
 4. **Borders.** At every hop the six borders above constrain what the request
    can reach. A tenant-alpha agent cannot call a tenant-beta tool, cannot read
    tenant-beta rows, and cannot reach a tenant-beta pod.
@@ -230,10 +243,7 @@ Port-forwards (printed at the end of `setup-kind.sh`):
 ```bash
 kubectl port-forward -n platform svc/postgres      5432:5432   # Postgres
 kubectl port-forward -n platform svc/gotrue        9999:9999   # GoTrue
-kubectl port-forward -n platform svc/vault         8200:8200   # Vault (token: root)
-kubectl port-forward -n argocd   svc/argocd-server 8080:80     # Argo CD
 kubectl port-forward -n kagent   svc/kagent-ui     3000:8080   # kagent UI
-kubectl port-forward -n kagent   svc/kagent-controller 8083:8083  # A2A endpoint
 ```
 
 ---
@@ -243,9 +253,9 @@ kubectl port-forward -n kagent   svc/kagent-controller 8083:8083  # A2A endpoint
 - **No Identity layer.** No AgentGateway, no JWT validation, no CEL policy, no
   audit log propagation. A tenant is a network and DB boundary, not an identity
   boundary. `platform.audit_log` exists but is not yet written by the request path.
-- **Vault is dev-mode.** Root token `root`, no persistence, no per-tenant path
-  policies. Per-tenant secret isolation is currently the K8s Secret-per-namespace
-  border, not Vault.
+- **Vault not deployed.** No Vault instance runs in this stage; secret isolation
+  is the K8s Secret-per-namespace border only. `vault_client.py` is present as
+  scaffolding for the Identity layer but unwired.
 - **HITL is off.** kagent `requireApproval` is in the CRD spec but not enabled in
   this stage.
 - **`latest` tag + `IfNotPresent`.** After rebuilding a tool image you must

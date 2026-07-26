@@ -5,12 +5,15 @@ Direct asyncpg calls bypass RLS → data leak across tenants.
 
 Why transaction() is required:
     asyncpg executes each statement in its own implicit transaction
-    (autocommit). SET LOCAL is scoped to the current transaction, so
-    it disappears before the next fetch() call unless both are wrapped
-    in an explicit BEGIN...COMMIT block.
+    (autocommit). set_config(..., true) is the functional equivalent
+    of SET LOCAL: scoped to the current transaction, so it disappears
+    before the next fetch() call unless both are wrapped in an
+    explicit BEGIN...COMMIT block. We use set_config() instead of
+    SET because SET does not accept bind parameters, and interpolating
+    tenant_id into SQL text would be an injection vector.
 
-    Ref: https://www.postgresql.org/docs/current/sql-set.html
-         "SET LOCAL lasts only till the end of the current transaction"
+    Ref: https://www.postgresql.org/docs/current/functions-admin.html
+         set_config(setting_name, new_value, is_local)
 """
 
 import asyncpg
@@ -26,14 +29,18 @@ class TenantDB:
         """Run a SELECT and return rows, scoped to tenant_id."""
         async with self._pool.acquire() as conn:
             async with conn.transaction():
-                await conn.execute(f"SET LOCAL \"app.tenant_id\" = '{tenant_id}'")
+                await conn.execute(
+                    "SELECT set_config('app.tenant_id', $1, true)", tenant_id
+                )
                 return await conn.fetch(sql, *params)
 
     async def execute(self, sql: str, params: list, *, tenant_id: str) -> str:
         """Run an INSERT/UPDATE/DELETE, scoped to tenant_id."""
         async with self._pool.acquire() as conn:
             async with conn.transaction():
-                await conn.execute(f"SET LOCAL \"app.tenant_id\" = '{tenant_id}'")
+                await conn.execute(
+                    "SELECT set_config('app.tenant_id', $1, true)", tenant_id
+                )
                 return await conn.execute(sql, *params)
 
     async def query_one(
