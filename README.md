@@ -45,7 +45,7 @@ The answers to those questions, rather than the search for yet another framework
 
 **Agent Loop (ReAct)** is where state, reaction to events, and next-action selection live. Here the agent stops being "one request to a model" and becomes a process with memory, delegation, and HITL (Human-in-the-Loop). Without it the agent is just a stateless function, not a system.
 
-**Execution** is managed access to external resources. Tools, workflows, and LLM calls all go through controlled boundaries, with access limited per tool. That might be an MCP server, an n8n workflow, or an LLM provider. In every case it is access to a capability, not direct reach into a backend.
+**Execution** governs access to capabilities rather than direct access to infrastructure. Tools, workflows, and LLM calls all go through controlled boundaries, with access limited per tool. That might be an MCP server, an n8n workflow, or an LLM provider. In every case it is access to a capability, not direct reach into a backend.
 
 **Identity, Policy & Audit** is the cross-cutting layer for identity, permissions, control, and investigation. Identity and Policy answer who is allowed to do what. Audit answers who actually did what. The first two protect the system, the third lets you investigate incidents. Without it the harness stays an unsafe construction, so it is worth its own architectural slice.
 

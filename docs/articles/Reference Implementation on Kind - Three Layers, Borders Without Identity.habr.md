@@ -2,7 +2,7 @@
 
 *Boundaries first. Identity later.*
 
-В первой части был нарисован архитектурный каркас **Self-Hosted Enterprise AI Harness** — это operating environment вокруг AI-агентов, который вы запускаете на своей инфраструктуре. Здесь этот каркас перестаёт быть схемой и превращается в реальный запуск. Три из четырёх слоёв поднимаются на локальном Kind-кластере, с двумя изолированными тенантами и end-to-end маршрутом через весь стек.
+В первой части был нарисован архитектурный каркас **Self-Hosted Enterprise AI Harness** — это operating environment вокруг AI-агентов, который вы запускаете на своей инфраструктуре. Здесь этот каркас перестаёт быть схемой и превращается в реальный запуск. Три из четырёх слоёв (Input, Agent Loop и Execution) поднимаются на локальном Kind-кластере, с двумя изолированными тенантами и end-to-end маршрутом через весь стек.
 
 ## Контекст
 
@@ -19,7 +19,7 @@
 
 ## Что именно проверяется
 
-Эта реализация отвечает на очень конкретный вопрос: можно ли безопасно разделять тенанты без полноценной identity-модели. Практически — провести одно Telegram-сообщение через три слоя и доказать, что `tenant-alpha` не видит `tenant-beta`: ни pod, ни сеть, ни строки в базе.
+Эта реализация отвечает на очень конкретный вопрос: какие изоляционные свойства можно обеспечить до identity. Практически — провести одно Telegram-сообщение через три слоя и доказать, что `tenant-alpha` не видит `tenant-beta`: ни pod, ни сеть, ни строки в базе.
 
 Ответ: да, но ограниченно. Только при условии, что границы проведены на нескольких уровнях сразу:
 
@@ -53,14 +53,14 @@
 
 ## Шесть рабочих границ
 
-Полные Helm-шаблоны и SQL-миграции - в репозитории. Ниже только концептуальные иллюстрации, достаточно, чтобы понять форму каждой границы.
+Полные Helm-шаблоны и SQL-миграции - в [публичном репозитории](https://github.com/vasiache/enterprise-ai-harness/tree/main/isolation). Ниже только концептуальные иллюстрации, достаточно, чтобы понять форму каждой границы.
 
 Кратко:
 
 - **Namespace на тенант**: грубая runtime-граница.
 - **NetworkPolicy deny-all + точечный allow**: изоляция сети.
 - **PostgreSQL RLS**: data-изоляция на уровне БД.
-- **TenantDB-обёртка**: RLS не работает без явной транзакции и `set_config`.
+- **TenantDB-обёртка**: применение RLS в коде.
 - **kagent `allowedNamespaces.from: Same`**: cross-tenant deny на уровне agent loop.
 - **Пер-тенантные секреты**: токены мимо Helm values и истории релизов.
 
@@ -84,9 +84,9 @@
 
 Для `shared-tools` тоже действует ограничение: его могут вызывать только tenant namespace и `kagent`.
 
-Это важная деталь, потому что изоляция здесь не декларативная, а реально enforced.
+Изоляция здесь не декларативная, а реально enforced.
 
-Полный набор политик - в чарте: `helm/charts/tenant/templates/networkpolicy.yaml`.
+Полный набор политик - в чарте: [`helm/charts/tenant/templates/networkpolicy.yaml`](https://github.com/vasiache/enterprise-ai-harness/blob/main/isolation/helm/charts/tenant/templates/networkpolicy.yaml).
 
 ### 3. Data-граница: PostgreSQL RLS
 
@@ -128,7 +128,7 @@ async with conn.transaction():
 
 Fail-safe `ALTER DATABASE postgres SET app.tenant_id = ''` - это страховка на случай, если контекст забыли выставить: запрос вернёт 0 строк, а не чужие. Важный нюанс: GUC применяется только к новым соединениям, поэтому миграция RLS обязана идти до старта пула подов (в этом референсе `04_migrations.sh` отрабатывает раньше `07_tools.sh`).
 
-Полный код и комментарий про `statement_cache_size=0` в `packages/saas-common/saas_common/supabase_client.py`.
+Полный код и комментарий про `statement_cache_size=0` в [`packages/saas-common/saas_common/supabase_client.py`](https://github.com/vasiache/enterprise-ai-harness/blob/main/isolation/packages/saas-common/saas_common/supabase_client.py).
 
 ### 5. Agent-loop-граница: Запрет cross-tenant на уровне kagent
 
@@ -198,6 +198,8 @@ Execution вынесен в отдельные FastMCP-серверы, подк�
 - kagent работает с внешним Postgres, но память агента и tenant data живут в разных базах и под разными ролями: память агента в БД `kagent` (роль `kagent`), tenant data в БД `postgres`, схема `platform`/`orders` (роль `app_user` с RLS).
 - пересборка image завязана на хэш исходников.
 - онбординг тенанта реализован как код через `tenant.py deploy`.
+
+Полный гайд по развёртыванию, walk-through изоляции и day-2 ops - в [DEPLOYMENT.md](https://github.com/vasiache/enterprise-ai-harness/blob/main/isolation/DEPLOYMENT.md).
 
 ## Один запрос через весь стек
 
@@ -272,11 +274,17 @@ Graph engineering не заменяет Loop Engineering и не делает т
 fan-out → judge → verifier → fixer → tests → pass / retry
 ```
 
+![From AI Workflow to Distributed System](../diagrams/From%20AI%20Workflow%20to%20Distributed%20System.png)
+
 В графе инженер управляет уже не только поведением агента, но и структурой самого процесса. Такой граф невозможен без доверенных границ. Каждый узел должен понимать, в каких рамках он работает, кто инициировал действие и по каким правилам может вызвать следующий узел. Без RLS узлы перетекают друг в друга. Без NetworkPolicy один скомпрометированный под становится точкой отказа для всех. Без Identity нет субъекта действия, а значит, audit и approval невозможны. Без TenantDB граница данных превращается в надежду на дисциплину кода.
+
+Хороший пример того, куда движется индустрия — [Graph Engineering Playbook от Anthropic](https://github.com/vasiache/enterprise-ai-harness/blob/main/docs/references/Graph-Engineering-Anthropic-Playbook.pdf). Это аккуратный разбор того, как проектировать графы агентов: extraction, resolution, assembly, querying, каждый этап через structured-output вызовы, а сам граф отображён на канонические агентские паттерны — shared memory для orchestrator–workers, grounding layer для evaluator–optimizer, persistent world model для долгих циклов. Как образец Graph Engineering это стоит изучить.
+
+Он отвечает на конкретный вопрос: как проектировать графы агентов? Enterprise AI Harness отвечает на другой: при каких архитектурных условиях такие графы становятся доверенными внутри enterprise? Graph Engineering — направление, к которому идёт индустрия и, возможно, будущий стандарт. Но граф — это проект. Его всё равно нужно где-то реализовать — исполнять в условиях, которые делают каждый узел доверенным. Эта реализация как раз про нижний уровень: архитектурные свойства, без которых Graph Engineering внутри enterprise не становится доверенным, а остаётся красивой схемой.
 
 Именно поэтому эта серия не пытается рассказать про Enterprise AI Harness за одну статью. Enterprise AI Harness - это не отдельная технология и не один фреймворк, а архитектурная модель. Поэтому каждый материал разбирает один из её аспектов: границы, изоляцию, идентичность, инженерные подходы и компоненты, которые вместе превращают набор AI-инструментов в полноценную корпоративную платформу.
 
-Не `LLM → Agent → Tools → MCP`, а `Architecture → Isolation → Identity → Graph`. Graph engineering здесь не «следующая тема», а мотивация всей архитектуры. Не запустить Telegram-бота, а как можно безопасно оркестрировать десятки агентов, каждый из которых знает свой тенант, своего инициатора, свои правила.
+Не `LLM → Agent → Tools → MCP`, а `Architecture → Isolation → Identity → Graph`. Не запустить Telegram-бота, а как можно безопасно оркестрировать десятки агентов, каждый из которых знает свой тенант, своего инициатора, свои правила.
 
 Без Identity и Audit такой граф быстро упирается в потолок: состояние сохранять можно, skills и prompts переписывать можно, можно запускать много агентов. Однако без доверенной идентичности и следа действий система остаётся инженерно интересной, но enterprise-незавершённой. Поэтому порядок жёсткий: Isolation → Identity → Trust → Orchestration → Graphs. Иначе получится красивый граф, у которого есть узлы, рёбра и амбиции, но нет доверия.
 
@@ -299,6 +307,10 @@ fan-out → judge → verifier → fixer → tests → pass / retry
 Границы есть. Субъекта действия внутри тенанта — нет. Это и есть следующая проблема серии.
 
 Это не заменит существующие границы. Это заполнит пространство внутри них.
+
+![From Architecture to Architectural Properties](../diagrams/From%20Architecture%20to%20Architectural%20Properties.png)
+
+Первая статья серии описывала harness как архитектуру из четырёх слоёв. Постепенно, по мере того как эта реализация собиралась, перспектива смещалась. Сегодня я меньше думаю слоями и больше — архитектурными свойствами. Компоненты меняются. Технологии развёртывания меняются. Архитектурные свойства, необходимые для доверенного enterprise AI, остаются стабильными. Замените Kind на другой дистрибутив, kagent на другой agent runtime, FastMCP на другой инструментальный слой — свойства должны остаться прежними.
 
 **Self-Hosted Enterprise AI Harness. Boundaries first. Identity later.**
 ***
