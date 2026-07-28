@@ -46,8 +46,6 @@ Enterprise AI Harness answers a different one: under what architectural conditio
 
 The two are not competing. They sit at different layers. Graph Engineering is one discipline in a family that advanced AI systems are starting to require — Loop Engineering, Planning Engineering, Memory Engineering, Policy Engineering, and others that do not yet have names. Each of them presumes that the execution environment beneath them is already trustworthy. None of them defines or guarantees that trust.
 
-Enterprise AI Harness sits below that family by design. It does not compete with Graph Engineering. It is the architectural execution model that makes Graph Engineering — and the rest of the family — safe to run where being wrong is expensive.
-
 ![Graph Engineering vs Trustworthy Execution](../diagrams/Graph%20Engineering%20vs%20Trustworthy%20Execution.png)
 
 ---
@@ -196,7 +194,7 @@ The boundaries gave us a protected space. They proved that an action stayed insi
 
 Identity is the layer that converts a boundary-protected space into an attributable one. It attaches a principal to every action, a policy to every capability, and a record to every decision. It does not replace the boundaries. It makes the boundaries meaningful at the level of people and rules.
 
-This is why identity comes second, not first. You cannot attribute actions inside a space that has no walls. You cannot enforce policy across a perimeter that does not exist. Identity strengthens boundaries that already exist. It does not create trust on its own.
+This is why identity comes second, not first.
 
 ---
 
@@ -260,9 +258,7 @@ Read it forward, and each step adds a property. Read it backward, and each step 
 
 The implementation that supports this argument is temporary. The properties will not.
 
-While the original article in this series described the harness as a four-layer architecture, building the reference implementation gradually shifted my perspective. Today I think less in terms of layers and more in terms of architectural properties. Components evolve. Deployment technologies change. The architectural properties required for trustworthy enterprise AI remain stable.
-
-Graph Engineering may evolve. Agent frameworks may evolve. MCP may evolve. The LLMs themselves may evolve. Enterprise AI Harness is intentionally designed below all of them. It is not a competitor to any of them. It is the architectural execution model that keeps them trustworthy when they run inside an enterprise.
+Where the earlier article in this series framed the harness as a four-layer architecture, the layers remain, but the focus shifts to the architectural properties that hold beneath them.
 
 Enterprise graphs are not trustworthy because their models are intelligent. They are trustworthy because their execution is bounded.
 
