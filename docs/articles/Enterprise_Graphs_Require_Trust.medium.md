@@ -52,12 +52,6 @@ The two are not competing. They sit at different layers. Graph Engineering is on
 
 ### What we actually expect from a boundary
 
-Let's first agree on what we actually expect from a boundary.
-
-When you trust an approval inside an enterprise process, you are not trusting the approval itself. You are trusting that the approval was produced inside a context that could not have been tampered with: the approver was who the system says they were, the action they approved was the action that actually ran, the data they saw was the data that was actually there.
-
-The approval is the content. The context is the container. Trust lives in the container, not the content.
-
 A boundary is not authentication. Authentication tells you who knocked on the door. A boundary is the guarantee that, whoever knocks, the door is the only way in and the room is the only place they can reach.
 
 A boundary is an architectural guarantee that holds independently of the application's correctness. If the code is wrong, the boundary still holds. If a developer forgets a check, the boundary still holds. If an agent is tricked, the boundary still holds.
@@ -69,10 +63,6 @@ If a guarantee disappears the moment a developer makes a mistake, it was never a
 ### An Enterprise AI Harness is an architectural execution model
 
 An Enterprise AI Harness is not another AI platform. It is not a framework. It is the execution environment around agents that makes them trustworthy enough to participate in enterprise processes.
-
-It accepts input, runs the agent loop, governs execution, and propagates identity, policy, and audit across every layer. It is the operating shell, not the agent inside it.
-
-Calling it an execution environment is accurate but incomplete. An environment is a place where things run. A harness is also the set of architectural properties that make what runs trustworthy. That is why I now think of it less as an environment and more as an architectural execution model: the model that defines which properties must hold, in which order, for enterprise AI to be trustworthy at all.
 
 The purpose of that shell is not to make agents smarter. The purpose is to make their output usable in environments where being wrong is expensive, and an approval, a change, or a data access has consequences.
 
@@ -126,15 +116,33 @@ With that framing, here is what the implementation actually holds.
 
 Read each of these as a property, not as a technology. The technology is the mechanism. The property is the guarantee.
 
-**Runtime boundary.** Each tenant lives in its own execution scope. Agents of one tenant never share a process with agents of another. The property: a compromise or a bug in one tenant's runtime cannot reach another tenant's runtime by accident. In the implementation this is a namespace per tenant. The property does not care.
+**Runtime boundary.** Each tenant lives in its own Kubernetes namespace. Agents of one tenant never share a process with agents of another. The property: a compromise or a bug in one tenant's runtime cannot reach another tenant's runtime by accident. If multi-tenancy is not expressed at the runtime level, the rest of the isolation is likely held together by developer discipline.
 
-**Network boundary.** The default is closed. Egress and ingress are denied unless explicitly opened, and only to the destinations the work requires. The property: a pod that should only talk to the database cannot, by construction, talk to another tenant's pod. Isolation here is enforced, not declared.
+**Network boundary.** The default is closed. Each tenant namespace runs `deny-all` for ingress and egress, opened only to the destinations the work requires: the platform database, the A2A controller, DNS, and egress to LLM providers on 80/443. The property: a pod that should only talk to the database cannot, by construction, talk to another tenant's pod. Isolation here is enforced, not declared.
 
-**Data boundary.** Tenant-scoped rows are filtered at the storage layer, by a policy that compares each row's tenant to a context the application must set. The property: even if the application asks for everything, the storage returns only the rows belonging to the current tenant. If the context is missing, storage returns nothing, not everything.
+**Data boundary.** Tenant-scoped rows are filtered at the storage layer by PostgreSQL Row-Level Security, with a policy that compares each row's tenant to a context the application must set:
 
-**Agent boundary.** An agent can be invoked as a tool only from within its own scope. The property: a tenant's agents cannot be composed into another tenant's loop. The agent system itself enforces the deny, with the network boundary as a second layer.
+```sql
+USING (tenant_id = current_setting('app.tenant_id', true))
+```
 
-**Secret boundary.** Credentials live in the tenant's own scope and never pass through the deployment's value chain. The property: a tenant's secret is not present in the release history, the values files, or any shared configuration where another tenant's process could read it.
+The property: even if the application asks for everything, the storage returns only the rows belonging to the current tenant. If the context is missing, storage returns nothing, not everything. A fail-safe `ALTER DATABASE … SET app.tenant_id = ''` ensures a forgotten context returns zero rows, not a leak.
+
+RLS alone is not enough. The application must set the context inside an explicit transaction, or `asyncpg` silently breaks it. That is why the data boundary depends on a wrapper, not on the application remembering:
+
+```python
+async with conn.transaction():
+    await conn.execute("SELECT set_config('app.tenant_id', $1, true)", tenant_id)
+    return await conn.fetch(sql, *params)
+```
+
+`set_config(..., true)` is used instead of `SET LOCAL` because `SET` does not take bind parameters — interpolating `tenant_id` into SQL text is an injection even when the value comes from config. The wrapper also disables prepared-statement caching, so RLS does not remain a checkbox on paper.
+
+> **Trade-off: a database per tenant vs. shared + RLS.** The strongest isolation is a separate database (or cluster) per tenant: get RLS wrong and there is no leak, because there is no RLS. The cost is N databases, N backups, N connection pools — operational complexity that grows linearly with tenants. This reference takes the compromise: one platform database, RLS, the wrapper, and the fail-safe. Isolation moves from infrastructure to RLS-correctness. For regulated or HIPAA-class workloads, the compromise tilts back toward a database per tenant.
+
+**Agent boundary.** An agent can be invoked as a tool only from within its own namespace, enforced by `allowedNamespaces.from: Same` in the agent CRD. The property: a tenant's agents cannot be composed into another tenant's loop. The agent system enforces the deny, with the network boundary as a second layer.
+
+**Secret boundary.** Credentials live in the tenant's own namespace and never pass through the deployment's value chain. The property: a tenant's secret is not present in the Helm values, the release history, or any shared configuration where another tenant's process could read it. Per-tenant Vault paths arrive with the identity layer.
 
 **Operational boundary.** The five above are only real if they are deployed in the right order and not silently broken. The property: a data boundary that depends on a migration has that migration applied before any pool opens; a data boundary that depends on a wrapper has that wrapper on every code path. The operational boundary is the discipline that keeps the other five from being a checkbox on paper.
 
@@ -144,19 +152,11 @@ Six boundaries, six guarantees. None of them authenticates anyone. All of them a
 
 ### One request, end to end
 
-One request shows what the boundaries actually do.
+One Telegram message shows what the boundaries actually do. The route crosses every boundary, and each one holds:
 
-A message arrives from a tenant's chat channel.
+![One Request Through the Stack](../diagrams/One%20Request%20Through%20the%20Stack.png)
 
-At the input, the message is tied to a tenant and a user before it becomes anything else. The runtime boundary has already done its work: the message entered through a process that belongs to one tenant and could not have entered through another's.
-
-The message is forwarded to the agent controller as a structured task, not as free text. The forwarding crosses the network boundary. Only this controller is reachable from this tenant's scope, and only this tenant's scope is reachable from the controller.
-
-The controller raises a session for a declarative agent. The agent is not custom code. It is a configuration: a system message, a model, a list of tools. The agent boundary holds here. The tools this agent may call are scoped to this namespace, and no agent from another namespace can be wired in as a tool.
-
-The agent decides to call a tool. The tool runs in the tenant's scope and reads its tenant from its deployment, not from the request. The tenant identity for the tool is not a parameter the caller passes and could forge. It is a property of where the tool was deployed.
-
-The tool queries the database through a wrapper that sets the tenant context inside an explicit transaction before any row is read. The data boundary holds at the storage layer: the query returns only this tenant's rows, and would return zero rows if the context were ever forgotten.
+The tenant identity for the tool is not a parameter the caller passes and could forge — it is a property of where the tool was deployed. The query returns only this tenant's rows, and would return zero rows if the context were ever forgotten.
 
 One request. Five boundaries enforced. Not checked. Not logged. Enforced. At no point did the request's safety depend on an agent being smart, a prompt being careful, or a developer remembering a check.
 
@@ -171,6 +171,8 @@ Honesty matters more than a clean story.
 These boundaries separate tenants from each other. They do not separate roles within a tenant. A user and an admin inside the same tenant are, to the boundaries above, the same principal. The system can prove that tenant alpha never saw tenant beta's data. It cannot prove which person inside tenant alpha did what.
 
 A pod compromised inside a tenant's scope opens everything inside that scope. The boundaries are between tenants, not within them.
+
+Privileged containers and `hostPath` mounts break out of the boundary entirely — they escape NetworkPolicy and namespace, so Kubernetes-level isolation stops applying. This reference has no PodSecurityPolicy or admission control to prevent that yet.
 
 A data boundary can fail silently. A forgotten context setting, a cached prepared statement, a direct database call that bypasses the wrapper, and the query returns the wrong rows with no visible error. A boundary that the application is trusted to enforce is a convention, not a boundary. The wrapper exists precisely because the storage policy alone is not enough.
 
@@ -214,8 +216,6 @@ Each arrow in that graph is a transfer of trust. The verifier trusts that the im
 
 A graph node that does not know its tenant, its initiator, and its policy is not a node. It is a leak.
 
-Graph Engineering is where the industry is heading, and it may well become the standard way multi-agent processes are designed. But a graph is a design. It still has to be realized somewhere — executed under conditions that make each of its nodes trustworthy. That is a different problem, at a different layer.
-
 ```
 Enterprise AI Engineering
         ↓
@@ -228,9 +228,7 @@ Architectural Properties
 Trustworthy Enterprise Execution
 ```
 
-The emerging field can be framed as a stack. Enterprise AI Engineering is the umbrella — the disciplines that design how an enterprise AI system behaves. Read the diagram top-down and it describes what the field builds. Read it bottom-up and it describes what each layer presumes. Graph Engineering presumes a trustworthy execution model. The execution model presumes architectural properties. The properties are what remain when every component above them is replaced.
-
-This is why graph engineering is not the next topic in the series. It is the motivation for the entire architecture. The boundaries exist so that a graph can be trusted. Identity exists so that a graph can be attributable. The harness exists so that a graph can be run in production without the trust between its nodes degrading into guesswork.
+Read the stack top-down and it describes what the field builds; read it bottom-up and it describes what each layer presumes. Graph Engineering presumes a trustworthy execution model, which presumes architectural properties.
 
 The evolution is not accidental.
 
@@ -248,19 +246,15 @@ Each step adds a new architectural property. Each property is only safe to add b
 
 An enterprise AI system does not become trustworthy by choosing better components. It becomes trustworthy by acquiring architectural properties, in an order that cannot be skipped.
 
-Follow the evolution in either direction.
-
 ```
 single agent → multiple agents → cooperation → approvals → verification → graph execution → trust → identity → architectural boundaries
 ```
 
-Read it forward, and each step adds a property. Read it backward, and each step asks for the one beneath it. The chain ends at architectural boundaries. That is where the rest of the chain starts.
+Read it backward, and each step asks for the one beneath it. The chain ends at architectural boundaries. That is where the rest of the chain starts.
 
 The implementation that supports this argument is temporary. The properties will not.
 
 Where the earlier article in this series framed the harness as a four-layer architecture, the layers remain, but the focus shifts to the architectural properties that hold beneath them.
-
-Enterprise graphs are not trustworthy because their models are intelligent. They are trustworthy because their execution is bounded.
 
 If you remember one thing from this article, let it be three lines, in the order the architecture forces them:
 
