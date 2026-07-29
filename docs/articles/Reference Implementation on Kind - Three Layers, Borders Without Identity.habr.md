@@ -203,6 +203,8 @@ Execution вынесен в отдельные FastMCP-серверы, подк�
 
 Самая важная проверка - не список компонентов, а один живой запрос.
 
+![One Request Through the Stack](../diagrams/One%20Request%20Through%20the%20Stack.png)
+
 Маршрут выглядит так:
 
 1. Сообщение приходит в Telegram.
@@ -256,6 +258,8 @@ Execution вынесен в отдельные FastMCP-серверы, подк�
 
 До этого момента мы обсуждали только архитектурные границы. Возникает естественный вопрос: зачем вся эта сложность, если можно написать одного ReAct-агента на LangGraph или CrewAI?
 
+![Graph Engineering vs Trustworthy Execution](../diagrams/Graph%20Engineering%20vs%20Trustworthy%20Execution.png)
+
 Enterprise AI Harness существует не для того, чтобы запускать агентов. Он существует для того, чтобы сложные многоагентные процессы можно было проектировать, запускать и развивать, не разрушая границы доверия между компонентами.
 
 По мере усложнения задач появляются дополнительные проверки, специализированные роли, верификация результатов, исправление ошибок, тестирование и повторные попытки. Сначала всё это обычно остаётся внутри Agent Loop: агент вызывает другие агенты как инструменты, запускает проверки, повторяет шаги, следит за бюджетом и принимает решение, когда остановиться.
@@ -272,13 +276,17 @@ Graph engineering не заменяет Loop Engineering и не делает т
 fan-out → judge → verifier → fixer → tests → pass / retry
 ```
 
-![From AI Workflow to Distributed System](../diagrams/From%20AI%20Workflow%20to%20Distributed%20System.png)
+![From Single Agent to Multi-Agent System](../diagrams/From%20Single%20Agent%20to%20Multi-Agent%20System.png)
 
 В графе инженер управляет уже не только поведением агента, но и структурой самого процесса. Такой граф невозможен без доверенных границ. Каждый узел должен понимать, в каких рамках он работает, кто инициировал действие и по каким правилам может вызвать следующий узел. Без RLS узлы перетекают друг в друга. Без NetworkPolicy один скомпрометированный под становится точкой отказа для всех. Без Identity нет субъекта действия, а значит, audit и approval невозможны. Без TenantDB граница данных превращается в надежду на дисциплину кода.
 
-Хороший пример того, куда движется индустрия — [Graph Engineering Playbook от Anthropic](https://github.com/vasiache/enterprise-ai-harness/blob/main/docs/references/Graph-Engineering-Anthropic-Playbook.pdf). Это аккуратный разбор того, как проектировать графы агентов: extraction, resolution, assembly, querying, каждый этап через structured-output вызовы, а сам граф отображён на канонические агентские паттерны — shared memory для orchestrator–workers, grounding layer для evaluator–optimizer, persistent world model для долгих циклов. Как образец Graph Engineering это стоит изучить.
+Сам пайплайн уже публичен: extraction, resolution, assembly, querying knowledge-графов, каждый этап через structured-output вызовы. Это описано в официальном cookbook [Knowledge graph construction with Claude](https://platform.claude.com/cookbook/capabilities-knowledge-graph-guide). Хороший пример того, куда индустрия движется дальше, - независимо собранный плейбук [Knowledge Graph Engineering for Multi-Agentic Systems](https://github.com/vasiache/enterprise-ai-harness/blob/main/docs/references/Knowledge-Graph-Engineering-Multi-Agentic-Systems.pdf). Он отображает knowledge graph на канонические агентские паттерны из [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents): shared memory для orchestrator-workers, grounding layer для evaluator-optimizer, persistent world model для долгих циклов. Как образец Graph Engineering это стоит изучить.
 
-Он отвечает на конкретный вопрос: как проектировать графы агентов? Enterprise AI Harness отвечает на другой: при каких архитектурных условиях такие графы становятся доверенными внутри enterprise? Graph Engineering — направление, к которому идёт индустрия и, возможно, будущий стандарт. Но граф — это проект. Его всё равно нужно где-то реализовать — исполнять в условиях, которые делают каждый узел доверенным. Эта реализация как раз про нижний уровень: архитектурные свойства, без которых Graph Engineering внутри enterprise не становится доверенным, а остаётся красивой схемой.
+Он отвечает на конкретный вопрос: как проектировать графы агентов. Enterprise AI Harness отвечает на другой: при каких архитектурных условиях такие графы становятся доверенными внутри enterprise? Graph Engineering — направление, к которому идёт индустрия и, возможно, будущий стандарт. Но граф — это проект. Его всё равно нужно где-то реализовать — исполнять в условиях, которые делают каждый узел доверенным. Эта реализация как раз про нижний уровень: архитектурные свойства, без которых Graph Engineering внутри enterprise не становится доверенным, а остаётся красивой схемой.
+
+![What Each Layer Presumes](../diagrams/What%20Each%20Layer%20Presumes.png)
+
+Сверху вниз — что строит индустрия. Снизу вверх — что требуется каждому слою, чтобы он мог существовать. Graph Engineering предполагает доверенное исполнение, а оно, в свою очередь, предполагает архитектурные свойства.
 
 Enterprise AI Harness - это не отдельная технология и не один фреймворк, а архитектурная модель: границы, изоляция, идентичность, инженерные подходы и компоненты, которые вместе превращают набор AI-инструментов в полноценную корпоративную платформу.
 
@@ -287,6 +295,8 @@ Enterprise AI Harness - это не отдельная технология и �
 Без Identity и Audit такой граф быстро упирается в потолок: состояние сохранять можно, skills и prompts переписывать можно, можно запускать много агентов. Однако без доверенной идентичности и следа действий система остаётся инженерно интересной, но enterprise-незавершённой. Поэтому порядок жёсткий: Isolation → Identity → Trust → Orchestration → Graphs. Иначе получится красивый граф, у которого есть узлы, рёбра и амбиции, но нет доверия.
 
 ## Что дальше
+
+![Trust Emerges from Architectural Properties](../diagrams/Trust%20Emerges%20from%20Architectural%20Properties.png)
 
 Следующая статья серии должна и будет отвечать на вопрос, который здесь ещё не решён:
 

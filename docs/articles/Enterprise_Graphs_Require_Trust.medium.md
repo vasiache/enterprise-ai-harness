@@ -12,11 +12,13 @@ Most of the hard problems people call "AI safety" inside such a system are not a
 
 That is an architectural problem.
 
+This is not a whiteboard argument. The [four-layer architecture from the previous article](https://medium.com/towards-artificial-intelligence/toward-a-four-layer-architecture-for-self-hosted-enterprise-ai-harnesses-a960e9fe6a24) partially runs: three of four layers deployed on a local Kubernetes cluster, two tenants isolated from each other, one request traveling end to end through every boundary. Identity is deliberately out of scope; this is the boundaries stage, the part that has to hold before identity can mean anything. The code is public: [github.com/vasiache/enterprise-ai-harness](https://github.com/vasiache/enterprise-ai-harness). What follows explains why those boundaries come first, and what they already prove.
+
 Two terms govern the rest of this article.
 
 > **Architectural trust** — the ability to rely on execution guarantees that hold independently of the model's correctness.
 >
-> **Enterprise AI Harness** — the execution model that provides those guarantees.
+> **Enterprise AI Harness** — the architecture in which a multi-agent system meets an enterprise's security requirements: the layers it is built from, and the properties that survive any component swap. Loop Engineering and Graph Engineering presume it exists.
 
 ---
 
@@ -38,7 +40,7 @@ This is why the conversation about enterprise AI keeps feeling shallow. It debat
 
 ### Graph Engineering answers a different question
 
-Graph Engineering is emerging as an important engineering practice. [Anthropic's Graph Engineering Playbook](https://github.com/vasiache/enterprise-ai-harness/blob/main/docs/references/Graph-Engineering-Anthropic-Playbook.pdf) is an excellent example of where the field is heading. It treats the knowledge graph as the missing infrastructure for multi-agent systems — extraction, resolution, assembly, querying, each implemented as structured-output calls — and maps the graph onto the canonical agent patterns: shared memory for orchestrator–workers, grounding layer for evaluator–optimizer, persistent world model for long-running loops. As a piece of Graph Engineering, it is careful and worth studying.
+Graph Engineering is emerging as an important engineering practice. The pipeline it builds on is already public: extraction, resolution, assembly, querying of knowledge graphs, each implemented as structured-output calls, described in the official cookbook [Knowledge graph construction with Claude](https://platform.claude.com/cookbook/capabilities-knowledge-graph-guide). A recent independently compiled playbook, [Knowledge Graph Engineering for Multi-Agentic Systems](https://github.com/vasiache/enterprise-ai-harness/blob/main/docs/references/Knowledge-Graph-Engineering-Multi-Agentic-Systems.pdf), goes further: it treats the knowledge graph as the missing infrastructure for multi-agent systems and maps the graph onto the canonical agent patterns from [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) — shared memory for orchestrator–workers, grounding layer for evaluator–optimizer, persistent world model for long-running loops. As a piece of Graph Engineering, it is careful and worth studying.
 
 It answers a specific question: how should agent graphs be designed?
 
@@ -62,7 +64,7 @@ If a guarantee disappears the moment a developer makes a mistake, it was never a
 
 ### An Enterprise AI Harness is an architectural execution model
 
-An Enterprise AI Harness is not another AI platform. It is not a framework. It is the execution environment around agents that makes them trustworthy enough to participate in enterprise processes.
+An Enterprise AI Harness is not another AI platform. It is not a framework. It is the full architecture around agents: the runtime they live in, the paths through which input reaches them, the layer through which they act, and the identity, policy, and audit shell wrapped around all of it. It is what makes their output trustworthy enough to participate in enterprise processes.
 
 The purpose of that shell is not to make agents smarter. The purpose is to make their output usable in environments where being wrong is expensive, and an approval, a change, or a data access has consequences.
 
@@ -210,31 +212,15 @@ A graph is the shape of such a process. One node clarifies a task. Another imple
 fan-out → judge → verifier → fixer → tests → pass / retry
 ```
 
-![From AI Workflow to Distributed System](../diagrams/From%20AI%20Workflow%20to%20Distributed%20System.png)
+![From Single Agent to Multi-Agent System](../diagrams/From%20Single%20Agent%20to%20Multi-Agent%20System.png)
 
 Each arrow in that graph is a transfer of trust. The verifier trusts that the implementer's output is what was committed. The judge trusts that the verifier actually ran. The retry loop trusts that a failure was real and not a lie. Every one of those trusts is only valid if the nodes operate inside boundaries that make forgery and cross-contamination impossible.
 
 A graph node that does not know its tenant, its initiator, and its policy is not a node. It is a leak.
 
-```
-Enterprise AI Engineering
-        ↓
-Graph Engineering · Loop Engineering · …
-        ↓
-Enterprise AI Harness
-        ↓
-Architectural Properties
-        ↓
-Trustworthy Enterprise Execution
-```
+![What Each Layer Presumes](../diagrams/What%20Each%20Layer%20Presumes.png)
 
 Read the stack top-down and it describes what the field builds; read it bottom-up and it describes what each layer presumes. Graph Engineering presumes a trustworthy execution model, which presumes architectural properties.
-
-The evolution is not accidental.
-
-```
-single agent → multiple agents → cooperation → approvals → verification → graph execution
-```
 
 Each step adds a new architectural property. Each property is only safe to add because the previous boundaries already hold. You do not arrive at graph execution by making agents smarter. You arrive there by making the environment trustworthy enough that a graph can be allowed to run.
 
