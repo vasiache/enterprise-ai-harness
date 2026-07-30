@@ -2,17 +2,11 @@
 
 #### Why trustworthy multi-agent orchestration is an architectural problem, not an AI one.
 
-A single ReAct agent is an easy system. It thinks, it calls a tool, it answers. If it is wrong, one person is affected. The failure stays inside one conversation.
+A single ReAct agent is an easy system. The failure stays inside one conversation.
 
 The difficulty appears at the second agent.
 
-Until recently a multi-agent system was a research experiment. In 2026 it is a production reality. Organizations deploy orchestrators that coordinate specialized agents in parallel, each with dedicated context. The question is no longer whether graphs will run in production. It is whether the environment they run in can be trusted.
-
-The moment one agent calls another, the system changes nature. It is no longer an LLM with tools. It is a distributed system in which trust has to flow between nodes that may not even share a tenant.
-
-Most of the hard problems people call "AI safety" inside such a system are not about intelligence at all. They are about whether the result of one node can be trusted by the next.
-
-That is an architectural problem.
+The hard problems are not about intelligence. They are about whether the result of one node can be trusted by the next. That is an architectural problem.
 
 This is not a whiteboard argument. The [four-layer architecture from the previous article](https://medium.com/towards-artificial-intelligence/toward-a-four-layer-architecture-for-self-hosted-enterprise-ai-harnesses-a960e9fe6a24) partially runs: three of four layers deployed on a local Kubernetes cluster, two tenants isolated from each other, one request traveling end to end through every boundary.
 
@@ -22,7 +16,7 @@ Two terms govern the rest of this article.
 
 > **Architectural trust** — the ability to rely on execution guarantees that hold independently of the model's correctness.
 >
-> **Enterprise AI Harness** — the architecture around a multi-agent system: the runtime agents live in, the paths through which input reaches them, the execution layer of MCP servers and memory, and the identity, policy, and audit shell wrapped around all of it. Isolation is not required for every harness, but it is mandatory for enterprise scale. Loop Engineering and Graph Engineering presume it exists.
+> **Enterprise AI Harness** — the architecture in which a multi-agent system meets an enterprise's security requirements.
 
 ---
 
@@ -58,7 +52,11 @@ A harness is more than boundaries. A boundary keeps traffic in lanes. Identity t
 
 ### What we expect from a boundary
 
-A boundary is not authentication. Authentication tells you who knocked on the door. A boundary is the guarantee that, whoever knocks, the door is the only way in and the room is the only place they can reach. It holds independently of the application's correctness: if the code is wrong, if a developer forgets a check, if an agent is tricked, the boundary still holds. If a guarantee disappears the moment a developer makes a mistake, it was never a boundary. It was a convention.
+A boundary is not authentication. Authentication tells you who knocked on the door.
+
+A boundary is the guarantee that, whoever knocks, the door is the only way in and the room is the only place they can reach. It holds independently of the application's correctness: if the code is wrong, if a developer forgets a check, if an agent is tricked, the boundary still holds.
+
+If a guarantee disappears the moment a developer makes a mistake, it was never a boundary. It was a convention.
 
 ---
 
@@ -207,6 +205,17 @@ deploy-tenant: ## Deploy a tenant
 The property: a data boundary that depends on a migration has that migration applied before any pool opens; a data boundary that depends on a wrapper has that wrapper on every code path. The operational boundary is the discipline that keeps the other five from being a checkbox on paper.
 
 Six boundaries, six guarantees. None of them authenticates anyone. All of them are required for what comes next.
+
+| Boundary | What enforces it | What it guarantees |
+|---|---|---|
+| Runtime | Namespace per tenant | One compromise cannot reach another tenant's processes |
+| Network | NetworkPolicy deny-all by default | A pod cannot talk to another tenant's pod by accident |
+| Data | PostgreSQL RLS + TenantDB wrapper | Storage returns only this tenant's rows, even if the app asks for everything |
+| Agent | `allowedNamespaces: Same` | Agents cannot be composed into another tenant's loop |
+| Secret | Per-namespace secrets | Credentials never pass through shared Helm values or release history |
+| Operational | Ordered deployment (migration before pool, wrapper on every path) | Boundaries hold on every code path, not only on paper |
+
+> **A boundary you can test.** Deploy two tenants against the same database. Query without setting `app.tenant_id`. The result must be zero rows. If you get data, your wrapper is broken and your RLS is a checkbox.
 
 ---
 
