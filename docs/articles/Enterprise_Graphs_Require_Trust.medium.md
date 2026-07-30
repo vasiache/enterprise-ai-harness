@@ -6,6 +6,8 @@ A single ReAct agent is an easy system. It thinks, it calls a tool, it answers. 
 
 The difficulty appears at the second agent.
 
+Until recently a multi-agent system was a research experiment. In 2026 it is a production reality. Organizations deploy orchestrators that coordinate specialized agents in parallel, each with dedicated context. The question is no longer whether graphs will run in production. It is whether the environment they run in can be trusted.
+
 The moment one agent calls another, the system changes nature. It is no longer an LLM with tools. It is a distributed system in which trust has to flow between nodes that may not even share a tenant.
 
 Most of the hard problems people call "AI safety" inside such a system are not about intelligence at all. They are about whether the result of one node can be trusted by the next.
@@ -20,7 +22,7 @@ Two terms govern the rest of this article.
 
 > **Architectural trust** — the ability to rely on execution guarantees that hold independently of the model's correctness.
 >
-> **Enterprise AI Harness** — the architecture in which a multi-agent system meets an enterprise's security requirements: the layers it is built from, and the properties that survive any component swap. Loop Engineering and Graph Engineering presume it exists.
+> **Enterprise AI Harness** — the architecture around a multi-agent system: the runtime agents live in, the paths through which input reaches them, the execution layer of MCP servers and memory, and the identity, policy, and audit shell wrapped around all of it. Isolation is not required for every harness, but it is mandatory for enterprise scale. Loop Engineering and Graph Engineering presume it exists.
 
 ---
 
