@@ -12,7 +12,9 @@ Most of the hard problems people call "AI safety" inside such a system are not a
 
 That is an architectural problem.
 
-This is not a whiteboard argument. The [four-layer architecture from the previous article](https://medium.com/towards-artificial-intelligence/toward-a-four-layer-architecture-for-self-hosted-enterprise-ai-harnesses-a960e9fe6a24) partially runs: three of four layers deployed on a local Kubernetes cluster, two tenants isolated from each other, one request traveling end to end through every boundary. Identity is deliberately out of scope; this is the boundaries stage, the part that has to hold before identity can mean anything. The code is public: [github.com/vasiache/enterprise-ai-harness](https://github.com/vasiache/enterprise-ai-harness). What follows explains why those boundaries come first, and what they already prove.
+This is not a whiteboard argument. The [four-layer architecture from the previous article](https://medium.com/towards-artificial-intelligence/toward-a-four-layer-architecture-for-self-hosted-enterprise-ai-harnesses-a960e9fe6a24) partially runs: three of four layers deployed on a local Kubernetes cluster, two tenants isolated from each other, one request traveling end to end through every boundary.
+
+Identity is out of scope; this is the boundaries stage, the part that has to hold before identity can mean anything. The code is public: [github.com/vasiache/enterprise-ai-harness](https://github.com/vasiache/enterprise-ai-harness). What follows explains why those boundaries come first, and what they already prove.
 
 Two terms govern the rest of this article.
 
@@ -46,7 +48,7 @@ The two are not competing. They sit at different layers. Graph Engineering is on
 
 ---
 
-### What we actually expect from a boundary
+### What we expect from a boundary
 
 A boundary is not authentication. Authentication tells you who knocked on the door. A boundary is the guarantee that, whoever knocks, the door is the only way in and the room is the only place they can reach. It holds independently of the application's correctness: if the code is wrong, if a developer forgets a check, if an agent is tricked, the boundary still holds. If a guarantee disappears the moment a developer makes a mistake, it was never a boundary. It was a convention.
 
@@ -54,11 +56,11 @@ A boundary is not authentication. Authentication tells you who knocked on the do
 
 ### An Enterprise AI Harness is an architectural execution model
 
-An Enterprise AI Harness is not another AI platform. It is not a framework. It is the full architecture around agents: the runtime they live in, the paths through which input reaches them, the layer through which they act, and the identity, policy, and audit shell wrapped around all of it. It is what makes their output trustworthy enough to participate in enterprise processes.
+An Enterprise AI Harness is not another AI platform. It is not a framework. It is the full architecture around agents: the runtime they live in, the paths through which input reaches them, and the identity, policy, and audit shell wrapped around all of it. It is what makes their output trustworthy enough to participate in enterprise processes.
 
 The purpose of that shell is not to make agents smarter. The purpose is to make their output usable in environments where being wrong is expensive, and an approval, a change, or a data access has consequences.
 
-What does the shell actually guarantee? Four things, in two stages.
+What does the shell guarantee? Four things, in two stages.
 
 Two hold at the boundary stage: capabilities are bounded per node, not held globally, and tenant data cannot cross into another tenant's context. Two arrive with identity: identity survives from the initiator to the last tool call, and every action is attributable to a principal.
 
@@ -84,7 +86,7 @@ The rest of this article is supported by a running reference implementation: a l
 
 The implementation is evidence. It is not the claim.
 
-It is also intentionally scoped. The public reference implementation demonstrates the boundaries stage: three layers deployed, identity deliberately out of scope. The purpose is to show that architectural boundaries can be enforced and evaluated before identity exists — that trustworthy execution begins with boundaries, not with authentication.
+It is also scoped. The public reference implementation demonstrates the boundaries stage: three layers deployed, identity out of scope. The purpose is to show that architectural boundaries can be enforced and evaluated before identity exists — that trustworthy execution begins with boundaries, not with authentication.
 
 What the reference implementation holds today:
 
@@ -179,7 +181,7 @@ async with conn.transaction():
 
 > **Trade-off: a database per tenant vs. shared + RLS.** The strongest isolation is a separate database per tenant: get RLS wrong and there is no leak, because there is no RLS. The cost is N databases, N backups, N connection pools — operational complexity that grows linearly. This reference takes the compromise: one platform database, RLS, the wrapper, and the fail-safe.
 
-![Data Boundary: Shared Database, Separate Rows](../diagrams/Data%20Boundary%20Shared%20Database%20Separate%20Rows.png)
+![RLS Enforcement Flow](../diagrams/RLS%20Enforcement%20Flow.png)
 
 **Agent boundary.** An agent can be invoked as a tool only from within its own namespace:
 
@@ -224,7 +226,7 @@ The tenant identity for the tool is not a parameter the caller passes and could 
 
 One request. Five boundaries enforced. Not checked. Not logged. Enforced. At no point did the request's safety depend on an agent being smart, a prompt being careful, or a developer remembering a check.
 
-That is what trustworthy execution looks like. It is quiet. Nothing dramatic happens, because nothing dramatic is allowed to.
+Trustworthy execution is quiet. Nothing dramatic happens, because nothing dramatic is allowed to.
 
 ---
 
@@ -236,7 +238,7 @@ These boundaries separate tenants, not roles within a tenant. A user and an admi
 
 A pod compromised inside a tenant's scope opens everything inside that scope. Privileged containers and `hostPath` mounts escape Kubernetes-level isolation entirely.
 
-A data boundary can fail silently: forgotten context, cached prepared statement, direct database call bypassing the wrapper, and the query returns wrong rows with no error. That is why the wrapper exists.
+A data boundary can fail silently. A developer deploys a hotfix on Friday evening, uses `asyncpg` directly for speed, forgets the wrapper. Monday morning the dashboard shows leads from every tenant mixed together. No error thrown, no alarm triggered. The wrapper exists because this scenario is not hypothetical.
 
 Shared tools are a shared blast radius. A stateful, privileged component shared across tenants is a single point of compromise for all of them.
 
@@ -249,8 +251,6 @@ There is no audit trail yet. The system can show what happened. It cannot show w
 Identity is introduced because the moment a multi-agent process includes an approval, the system has to answer a question boundaries alone cannot answer: who performed this action, and were they permitted to?
 
 Identity converts a boundary-protected space into an attributable one. It attaches a principal to every action, a policy to every capability, and a record to every decision. It does not replace the boundaries. It makes them meaningful at the level of people and rules.
-
-This is why identity comes second, not first.
 
 ---
 
@@ -284,7 +284,7 @@ The implementation that supports this argument is temporary. The properties will
 
 Where the earlier article in this series framed the harness as a four-layer architecture, the layers remain, but the focus shifts to the architectural properties that hold beneath them.
 
-If you remember one thing from this article, let it be four lines, in the order the architecture forces them:
+Four lines, in the order the architecture forces them:
 
 **Graph Engineering Requires Trust.**
 
