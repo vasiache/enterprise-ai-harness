@@ -36,13 +36,19 @@ Components are replaceable. Properties are not. This is why the conversation abo
 
 ---
 
-### Graph Engineering answers a different question
+### Graph Engineering and the harness
 
-Graph Engineering answers a specific question: how should agent graphs be designed?
+Lately the field compares "harness engineering" with "graph engineering" as if they were alternatives. That is a strange comparison. It is like asking whether a city needs roads infrastructure or traffic rules.
 
-Enterprise AI Harness answers a different one: under what architectural conditions can such graphs become trustworthy inside an enterprise?
+The industry is moving toward graph execution as the standard. The [2026 Agentic Coding Trends Report](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf) predicts multi-agent systems replacing single-agent workflows: an orchestrator coordinates specialized agents working in parallel, each with dedicated context. One node clarifies. Another implements. A third verifies. A fourth decides.
 
-The two are not competing. They sit at different layers. Graph Engineering is one discipline in a family that advanced AI systems are starting to require: Loop Engineering, Policy Engineering, and others that do not yet have names. Each of them presumes that the execution environment beneath them is already trustworthy. None of them defines or guarantees that trust.
+Graph Engineering designs the traffic plan. A harness is the road beneath it: the asphalt, the cameras, the lights, the signs. Agents are the cars. Where to place the light is a graph decision. The light itself, the camera, the lane divider — that is the harness.
+
+When the infrastructure is complete, the traffic flows. When something is missing (no signs at the merge, no lane markings), agents collide or loop. The graph does not fail because the graph is wrong. It fails because the road does not support the route.
+
+What does the harness guarantee? Four things, in two stages. Two hold at the boundary stage: capabilities are bounded per node, and tenant data cannot cross into another tenant's context. Two arrive with identity: identity survives from initiator to last tool call, and every action is attributable to a principal.
+
+A harness is more than boundaries. A boundary keeps traffic in lanes. Identity tells you who is driving. Policy tells them where they may turn. Audit records every intersection. Boundaries are the foundation. A harness is the full road.
 
 ![Graph Engineering in Harness](../diagrams/Graph%20Engineering%20in%20Harness.png)
 
@@ -51,20 +57,6 @@ The two are not competing. They sit at different layers. Graph Engineering is on
 ### What we expect from a boundary
 
 A boundary is not authentication. Authentication tells you who knocked on the door. A boundary is the guarantee that, whoever knocks, the door is the only way in and the room is the only place they can reach. It holds independently of the application's correctness: if the code is wrong, if a developer forgets a check, if an agent is tricked, the boundary still holds. If a guarantee disappears the moment a developer makes a mistake, it was never a boundary. It was a convention.
-
----
-
-### An Enterprise AI Harness is an architectural execution model
-
-An Enterprise AI Harness is not another AI platform. It is not a framework. It is the full architecture around agents: the runtime they live in, the paths through which input reaches them, and the identity, policy, and audit shell wrapped around all of it. It is what makes their output trustworthy enough to participate in enterprise processes.
-
-The purpose of that shell is not to make agents smarter. The purpose is to make their output usable in environments where being wrong is expensive, and an approval, a change, or a data access has consequences.
-
-What does the shell guarantee? Four things, in two stages.
-
-Two hold at the boundary stage: capabilities are bounded per node, not held globally, and tenant data cannot cross into another tenant's context. Two arrive with identity: identity survives from the initiator to the last tool call, and every action is attributable to a principal.
-
-None of them is a feature you add to an agent. None of them is a prompt.
 
 ---
 
@@ -86,7 +78,7 @@ The rest of this article is supported by a running reference implementation: a l
 
 The implementation is evidence. It is not the claim.
 
-It is also scoped. The public reference implementation demonstrates the boundaries stage: three layers deployed, identity out of scope. The purpose is to show that architectural boundaries can be enforced and evaluated before identity exists — that trustworthy execution begins with boundaries, not with authentication.
+It is also scoped. The public reference implementation demonstrates the boundaries stage: three layers deployed, identity out of scope. The purpose is to show that architectural boundaries can be enforced and evaluated before identity exists: that trustworthy execution begins with boundaries, not with authentication.
 
 What the reference implementation holds today:
 
@@ -94,9 +86,9 @@ What the reference implementation holds today:
 - ✔ Network isolation — NetworkPolicy deny-all by default.
 - ✔ Data isolation — PostgreSQL row-level security, enforced through a wrapper.
 
-The purpose is not to demonstrate Kubernetes. It is to demonstrate that Enterprise AI Harness is implementable — that the boundaries stage of the model already runs.
+The purpose is not to demonstrate Kubernetes. It is to demonstrate that Enterprise AI Harness is implementable: that the boundaries stage of the model already runs.
 
-The complete walkthrough, deployment instructions, and source code are in the public repository: [github.com/vasiache/enterprise-ai-harness — isolation](https://github.com/vasiache/enterprise-ai-harness/tree/main/isolation).
+The complete walkthrough, deployment instructions, and source code are in the public repository: [github.com/vasiache/enterprise-ai-harness/isolation](https://github.com/vasiache/enterprise-ai-harness/tree/main/isolation).
 
 I describe it only enough to validate the architectural ideas. The technologies in it are one way to hold the properties, not the properties themselves. If Kubernetes disappeared tomorrow, the properties would still need to hold. The implementation would change. The architecture would not.
 
@@ -177,9 +169,9 @@ async with conn.transaction():
     return await conn.fetch(sql, *params)
 ```
 
-`set_config(..., true)` is used instead of `SET LOCAL` because `SET` does not take bind parameters — interpolating `tenant_id` into SQL text is an injection even when the value comes from config. The wrapper also disables prepared-statement caching (`statement_cache_size=0`), so RLS does not remain a checkbox on paper.
+`set_config(..., true)` is used instead of `SET LOCAL` because `SET` does not take bind parameters, so interpolating `tenant_id` into SQL text is an injection even when the value comes from config. The wrapper also disables prepared-statement caching (`statement_cache_size=0`), so RLS does not remain a checkbox on paper.
 
-> **Trade-off: a database per tenant vs. shared + RLS.** The strongest isolation is a separate database per tenant: get RLS wrong and there is no leak, because there is no RLS. The cost is N databases, N backups, N connection pools — operational complexity that grows linearly. This reference takes the compromise: one platform database, RLS, the wrapper, and the fail-safe.
+> **Trade-off: a database per tenant vs. shared + RLS.** The strongest isolation is a separate database per tenant: get RLS wrong and there is no leak, because there is no RLS. The cost is N databases, N backups, N connection pools, so operational complexity grows linearly. This reference takes the compromise: one platform database, RLS, the wrapper, and the fail-safe.
 
 ![RLS Enforcement Flow](../diagrams/RLS%20Enforcement%20Flow.png)
 
