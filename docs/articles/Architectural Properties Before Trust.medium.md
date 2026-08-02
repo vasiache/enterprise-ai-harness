@@ -291,6 +291,8 @@ architectural boundaries → identity → trust → graph execution
 
 They meet at graph execution. One describes how you get there, the other describes what has to be holding when you arrive. Architectural boundaries are where the dependency chain starts, which is where the rest of it actually starts.
 
+![What Each Layer Presumes](../diagrams/What%20Each%20Layer%20Presumes.png)
+
 > The implementation behind this argument is temporary; I expect most of it to be replaced within a year. The properties it's demonstrating, I don't expect to change.
 
 Where the earlier article framed the harness as four layers, I'm not fully settled on that framing anymore. Some days I still think in layers; other days the properties feel more real: boundary, identity, audit, whatever comes after. Both may be two ways of looking at the same thing, and I may have a cleaner answer by the next article. I'd rather say that plainly than pretend the model is more finished than it is.
@@ -304,5 +306,7 @@ What I'm sure of, in whatever order I end up drawing it:
 **Identity needs boundaries.**
 
 **All of it together is what I've been calling an Enterprise AI Harness.**
+
+![Trust Emerges from Architectural Properties](../diagrams/Trust%20Emerges%20from%20Architectural%20Properties.png)
 
 If you've built something like this yourself, or you'd draw these boundaries differently, I'd genuinely like to hear it: in the comments, or on the repo.
