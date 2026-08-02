@@ -273,13 +273,21 @@ What a full review pipeline for agent graphs looks like is a later article. For 
 
 ### Where this leaves me
 
-An enterprise AI system doesn't become trustworthy by choosing better components. It becomes trustworthy by acquiring architectural properties, roughly in an order that resists skipping:
+An enterprise AI system doesn't become trustworthy by choosing better components. It becomes trustworthy by acquiring architectural properties. Two orders matter, and both resist skipping.
+
+**Evolution** — how a system grows toward graph execution:
 
 ```
-single agent → multiple agents → cooperation → approvals → verification → graph execution → trust → identity → architectural boundaries
+single agent → multiple agents → cooperation → approvals → verification → graph execution
 ```
 
-Read it backward and each step is asking for the one underneath it. Forward is the order a system evolves through; backward is the order of dependency, what must already hold for the next step to be possible. The chain ends at architectural boundaries, which is where the rest of it actually starts.
+**Dependency** — what each stage needs underneath it:
+
+```
+architectural boundaries → identity → trust → graph execution
+```
+
+They meet at graph execution. One describes how you get there, the other describes what has to be holding when you arrive. Architectural boundaries are where the dependency chain starts, which is where the rest of it actually starts.
 
 > The implementation behind this argument is temporary; I expect most of it to be replaced within a year. The properties it's demonstrating, I don't expect to change.
 
