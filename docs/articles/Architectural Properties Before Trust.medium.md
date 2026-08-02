@@ -307,6 +307,4 @@ What I'm sure of, in whatever order I end up drawing it:
 
 **All of it together is what I've been calling an Enterprise AI Harness.**
 
-![Trust Emerges from Architectural Properties](../diagrams/Trust%20Emerges%20from%20Architectural%20Properties.png)
-
 If you've built something like this yourself, or you'd draw these boundaries differently, I'd genuinely like to hear it: in the comments, or on the repo.
