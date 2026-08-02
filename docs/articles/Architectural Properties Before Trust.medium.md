@@ -1,4 +1,6 @@
-## Enterprise Graphs Require Trust
+## Architectural Properties Before Trust
+
+*Enterprise AI isn't just about orchestrating agents. It starts with the architectural properties that make trust possible.*
 
 #### Why trustworthy multi-agent orchestration is an architectural problem, not an AI one.
 
@@ -10,15 +12,15 @@ That question isn't about intelligence. A smarter model doesn't answer it. It's 
 
 This is not a whiteboard argument. The [four-layer architecture from the previous article](https://medium.com/towards-artificial-intelligence/toward-a-four-layer-architecture-for-self-hosted-enterprise-ai-harnesses-a960e9fe6a24) partially runs: three of four layers deployed on a local Kubernetes cluster, two tenants isolated from each other, one request traveling end to end through every boundary.
 
-Identity is out of scope; this is the boundary stage, the part that has to hold before identity can mean anything. The code is public: [github.com/vasiache/enterprise-ai-harness](https://github.com/vasiache/enterprise-ai-harness). What follows explains why those boundaries come first, and what they already prove.
+Identity deliberately remains outside the scope of this implementation. This article is about the architectural properties that have to exist before identity, policy, audit, and trust can emerge. The code is public: [github.com/vasiache/enterprise-ai-harness](https://github.com/vasiache/enterprise-ai-harness). What follows explains why those boundaries come first, and what they already prove.
 
-Where the first article framed the harness in layers, this one argues from the properties those layers hold. Same architecture, different axis.
+The first article described the architecture in terms of layers. This one looks at the same architecture through a different lens: the architectural properties those layers are expected to guarantee.
 
 Two terms govern the rest of this article.
 
 > **Architectural trust**: the ability to rely on execution guarantees that hold independently of the model's correctness.
 >
-> **Enterprise AI Harness**: the architecture in which a multi-agent system meets an enterprise's security requirements.
+> **Enterprise AI Harness**: the architectural environment in which multi-agent systems become secure, governable, and engineering-ready.
 
 ---
 
