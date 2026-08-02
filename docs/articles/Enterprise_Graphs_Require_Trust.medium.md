@@ -2,15 +2,17 @@
 
 #### Why trustworthy multi-agent orchestration is an architectural problem, not an AI one.
 
-A single ReAct agent is an easy system. The failure stays inside one conversation.
+The first time I watched two agents work on the same task, the single-agent version of this problem hadn't prepared me for what went wrong.
 
-The difficulty appears at the second agent.
+A single ReAct agent is an easy system to reason about. Whatever it gets wrong stays inside one conversation: you see the mess, you fix the prompt, you move on. The moment a second agent enters the picture, that stops being true. Now one agent's output becomes another agent's input, and nobody ever asked the question that actually matters: can the second agent trust what the first one handed it?
 
-The hard problems are not about intelligence. They are about whether the result of one node can be trusted by the next. That is an architectural problem.
+That question isn't about intelligence. A smarter model doesn't answer it. It's an architectural problem, and it's the one this article is about.
 
 This is not a whiteboard argument. The [four-layer architecture from the previous article](https://medium.com/towards-artificial-intelligence/toward-a-four-layer-architecture-for-self-hosted-enterprise-ai-harnesses-a960e9fe6a24) partially runs: three of four layers deployed on a local Kubernetes cluster, two tenants isolated from each other, one request traveling end to end through every boundary.
 
-Identity is out of scope; this is the boundaries stage, the part that has to hold before identity can mean anything. The code is public: [github.com/vasiache/enterprise-ai-harness](https://github.com/vasiache/enterprise-ai-harness). What follows explains why those boundaries come first, and what they already prove.
+Identity is out of scope; this is the boundary stage, the part that has to hold before identity can mean anything. The code is public: [github.com/vasiache/enterprise-ai-harness](https://github.com/vasiache/enterprise-ai-harness). What follows explains why those boundaries come first, and what they already prove.
+
+Where the first article framed the harness in layers, this one argues from the properties those layers hold. Same architecture, different axis.
 
 Two terms govern the rest of this article.
 
@@ -28,13 +30,21 @@ Look at what the field argues about. Models. Prompts. Tools. Frameworks. MCP. Gr
 
 These are component choices. The question almost nobody asks is different: what architectural properties must hold for a graph of agents to be trustworthy at all, independent of which model, which framework, which protocol is plugged in?
 
-Components are replaceable. Properties are not. This is why the conversation about enterprise AI keeps feeling shallow. It debates what to install. It rarely debates what must remain true after you install it.
+Components are replaceable. Properties are not. So why does the conversation about enterprise AI still feel shallow to me, even when the components being discussed are genuinely good? Because it debates what to install, not what has to remain true after you install it.
+
+---
+
+### What we expect from a boundary
+
+Authentication checks who's asking. A boundary is a stronger claim: it holds regardless of whether the code asking is correct. If the code is wrong, if a developer forgets a check, if an agent gets tricked, the boundary is supposed to not care. That's the whole point of calling it a boundary instead of a convention.
+
+If a guarantee disappears the moment someone makes a mistake, it was never a boundary. It was a convention everyone happened to follow until they didn't.
 
 ---
 
 ### Graph Engineering and the harness
 
-Lately the field compares "harness engineering" with "graph engineering" as if they were alternatives. That is a strange comparison. It is like asking whether a city needs roads infrastructure or traffic rules.
+Lately the field compares "harness engineering" with "graph engineering" as if they were alternatives. Strange comparison? Not really, once you notice it's like asking whether a city needs roads infrastructure or traffic rules.
 
 The industry is moving toward graph execution as the standard. The [2026 Agentic Coding Trends Report](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf) predicts multi-agent systems replacing single-agent workflows: an orchestrator coordinates specialized agents working in parallel, each with dedicated context. One node clarifies. Another implements. A third verifies. A fourth decides.
 
@@ -42,27 +52,17 @@ Graph Engineering designs the traffic plan. A harness is the road beneath it: th
 
 When the infrastructure is complete, the traffic flows. When something is missing (no signs at the merge, no lane markings), agents collide or loop. The graph does not fail because the graph is wrong. It fails because the road does not support the route.
 
-What does the harness guarantee? Four things, in two stages. Two hold at the boundary stage: capabilities are bounded per node, and tenant data cannot cross into another tenant's context. Two arrive with identity: identity survives from initiator to last tool call, and every action is attributable to a principal.
+What does the harness guarantee? Four things, in two stages. Two hold at the boundary stage: capabilities are bounded per node, and tenant data cannot cross into another tenant's context. Two arrive with identity: identity survives from initiator to last tool call, and every action is attributable to a principal. The six boundaries below are the mechanisms that hold the two boundary-stage guarantees. The two identity-stage guarantees arrive with the layer this article leaves for next.
 
-A harness is more than boundaries. A boundary keeps traffic in lanes. Identity tells you who is driving. Policy tells them where they may turn. Audit records every intersection. Boundaries are the foundation. A harness is the full road.
+A harness is more than boundaries. A boundary keeps traffic in lanes. Identity tells you who is driving. Policy tells them where they may turn. Audit records every intersection. Boundaries are the foundation. A harness is the full road. A bounded agent is also the first agent you can bring to review: a named, scoped object instead of a live process you trust on faith.
 
 ![Graph Engineering in Harness](../diagrams/Graph%20Engineering%20in%20Harness.png)
 
 ---
 
-### What we expect from a boundary
-
-A boundary is not authentication. Authentication tells you who knocked on the door.
-
-A boundary is the guarantee that, whoever knocks, the door is the only way in and the room is the only place they can reach. It holds independently of the application's correctness: if the code is wrong, if a developer forgets a check, if an agent is tricked, the boundary still holds.
-
-If a guarantee disappears the moment a developer makes a mistake, it was never a boundary. It was a convention.
-
----
-
 ### Boundaries before identity
 
-Identity is not the first architectural layer. It is the layer that strengthens boundaries that already exist. Consider what happens if you deploy identity on top of nothing: you validate a token at the front door, and then the request enters a space where any agent can call any other agent, where one pod's compromise reads every tenant's rows.
+Identity is not the first architectural layer. It is the layer that strengthens boundaries that already exist. Consider what happens if you deploy identity on top of nothing: you validate a token at the edge, and then the request enters a space where any agent can call any other agent, where one pod's compromise reads every tenant's rows.
 
 First you draw the boundaries: runtime, network, data, agent, secrets. Then you add identity to make the trust attributable.
 
@@ -78,15 +78,9 @@ The rest of this article is supported by a running reference implementation: a l
 
 The implementation is evidence. It is not the claim.
 
-It is also scoped. The public reference implementation demonstrates the boundaries stage: three layers deployed, identity out of scope. The purpose is to show that architectural boundaries can be enforced and evaluated before identity exists: that trustworthy execution begins with boundaries, not with authentication.
+It is also scoped. The public reference implementation demonstrates the boundary stage: identity out of scope. The purpose is to show that architectural boundaries can be enforced and evaluated before identity exists: that trustworthy execution begins with boundaries, not with authentication.
 
-What the reference implementation holds today:
-
-- ✔ Runtime isolation — namespace per tenant.
-- ✔ Network isolation — NetworkPolicy deny-all by default.
-- ✔ Data isolation — PostgreSQL row-level security, enforced through a wrapper.
-
-The purpose is not to demonstrate Kubernetes. It is to demonstrate that Enterprise AI Harness is implementable: that the boundaries stage of the model already runs.
+The purpose is not to demonstrate Kubernetes. It is to demonstrate that Enterprise AI Harness is implementable: that the boundary stage of the model already runs.
 
 The complete walkthrough, deployment instructions, and source code are in the public repository: [github.com/vasiache/enterprise-ai-harness/isolation](https://github.com/vasiache/enterprise-ai-harness/tree/main/isolation).
 
@@ -98,7 +92,7 @@ With that framing, here is what the implementation actually holds.
 
 ### Six architectural boundaries
 
-Read each of these as a property, not as a technology. The technology is the mechanism. The property is the guarantee.
+Read each of these as a property, not as a technology. The technology is the mechanism. The property is the guarantee. Each one is what lets a graph node consume another node's output without re-validating the whole world.
 
 **Runtime boundary.** Each tenant lives in its own Kubernetes namespace:
 
@@ -143,7 +137,7 @@ spec:
               kubernetes.io/metadata.name: platform
 ```
 
-The property: a pod that should only talk to the database cannot, by construction, talk to another tenant's pod. Isolation here is enforced, not declared.
+The property: a pod that should only talk to the database cannot, by construction, talk to another tenant's pod. Isolation here is enforced, not declared. I made deny-all the default after a pod reached another tenant's service by accident; declared isolation wasn't isolation.
 
 **Data boundary.** Tenant-scoped rows are filtered at the storage layer by PostgreSQL Row-Level Security:
 
@@ -159,7 +153,7 @@ The property: even if the application asks for everything, storage returns only 
 ALTER DATABASE postgres SET app.tenant_id = '';
 ```
 
-RLS alone is not enough. The application must set the context inside an explicit transaction, or `asyncpg` silently breaks it. The wrapper forces this:
+RLS alone is not enough. The application must set the context inside an explicit transaction, or `asyncpg` silently breaks it. I assumed RLS would be enough. It wasn't: asyncpg dropped the context outside an explicit transaction, and the leak took a day to find. The wrapper forces this:
 
 ```python
 async with conn.transaction():
@@ -169,7 +163,7 @@ async with conn.transaction():
     return await conn.fetch(sql, *params)
 ```
 
-`set_config(..., true)` is used instead of `SET LOCAL` because `SET` does not take bind parameters, so interpolating `tenant_id` into SQL text is an injection even when the value comes from config. The wrapper also disables prepared-statement caching (`statement_cache_size=0`), so RLS does not remain a checkbox on paper.
+`set_config(..., true)` is used instead of `SET LOCAL` because `SET` does not take bind parameters, so interpolating `tenant_id` into SQL text is an injection even when the value comes from config. The wrapper also disables prepared-statement caching (`statement_cache_size=0`), so RLS does not remain a checkbox.
 
 > **Trade-off: a database per tenant vs. shared + RLS.** The strongest isolation is a separate database per tenant: get RLS wrong and there is no leak, because there is no RLS. The cost is N databases, N backups, N connection pools, so operational complexity grows linearly. This reference takes the compromise: one platform database, RLS, the wrapper, and the fail-safe.
 
@@ -202,7 +196,7 @@ deploy-tenant: ## Deploy a tenant
     uv run python scripts/admin/tenant.py deploy --tenant $(TENANT)
 ```
 
-The property: a data boundary that depends on a migration has that migration applied before any pool opens; a data boundary that depends on a wrapper has that wrapper on every code path. The operational boundary is the discipline that keeps the other five from being a checkbox on paper.
+The property: a data boundary that depends on a migration has that migration applied before any pool opens; a data boundary that depends on a wrapper has that wrapper on every code path. The operational boundary is the discipline that keeps the other five from being a checkbox.
 
 Six boundaries, six guarantees. None of them authenticates anyone. All of them are required for what comes next.
 
@@ -213,7 +207,7 @@ Six boundaries, six guarantees. None of them authenticates anyone. All of them a
 | Data | PostgreSQL RLS + TenantDB wrapper | Storage returns only this tenant's rows, even if the app asks for everything |
 | Agent | `allowedNamespaces: Same` | Agents cannot be composed into another tenant's loop |
 | Secret | Per-namespace secrets | Credentials never pass through shared Helm values or release history |
-| Operational | Ordered deployment (migration before pool, wrapper on every path) | Boundaries hold on every code path, not only on paper |
+| Operational | Ordered deployment (migration before pool, wrapper on every path) | Boundaries hold on every code path |
 
 > **A boundary you can test.** Deploy two tenants against the same database. Query without setting `app.tenant_id`. The result must be zero rows. If you get data, your wrapper is broken and your RLS is a checkbox.
 
@@ -225,11 +219,9 @@ One Telegram message shows what the boundaries actually do. The route crosses ev
 
 ![One Request Through the Stack](../diagrams/One%20Request%20Through%20the%20Stack.png)
 
-The tenant identity for the tool is not a parameter the caller passes and could forge: it is a property of where the tool was deployed. The query returns only this tenant's rows, and would return zero rows if the context were ever forgotten.
+The tenant identity for the tool isn't a parameter the caller passes and could forge — it's a property of where the tool was deployed. The query returns only this tenant's rows, and would return zero rows if the context were ever forgotten.
 
-One request. Five boundaries enforced. Not checked. Not logged. Enforced. At no point did the request's safety depend on an agent being smart, a prompt being careful, or a developer remembering a check.
-
-Trustworthy execution is quiet. Nothing dramatic happens, because nothing dramatic is allowed to.
+Five boundaries get enforced along that one route, and none of them get merely checked or merely logged. The whole point is that nothing about it was exciting to watch. At no point did the request's safety depend on an agent being smart, a prompt being careful, or a developer remembering a check that day. That quietness is the actual product.
 
 ---
 
@@ -267,32 +259,40 @@ A graph is the shape of such a process. One node clarifies a task. Another imple
 
 Each arrow in that graph is a transfer of trust. The verifier trusts that the implementer's output is what was committed. The judge trusts that the verifier actually ran. Every one of those trusts is only valid if the nodes operate inside boundaries that make forgery and cross-contamination impossible.
 
-A graph node that does not know its tenant, its initiator, and its policy is not a node. It is a leak.
+A graph node without its tenant, its initiator, and its policy is a leak with a nice diagram drawn around it.
 
 The evolution is not accidental. You do not arrive at graph execution by making agents smarter. You arrive there by making the environment trustworthy enough that a graph can be allowed to run.
 
+There's a payoff in all this boundary work that the boundaries framing was never marketed for. Once an agent is a namespaced, bounded YAML object, it stops being a live process you trust on faith and becomes something you can diff, review, and ship. Two versions of an Agent CRD are just a diff. Promoting one to production is a merge. Rolling it back is a revert.
+
+That's boundaries doing something they were never sold on: turning an agent into the kind of thing you bring to review the same way you'd bring a pull request. "I tested it, trust me" becomes a diff a second reviewer can actually read before it ships. A reviewer can challenge a capability, an approval gate can block the promote, and the team ships the agent the same way it ships code: through a pipeline, not through a person's word.
+
+What a full review pipeline for agent graphs looks like is a later article. For now, even this boundaries-only stage already buys you that.
+
 ---
 
-### The conclusion the architecture was building toward
+### Where this leaves me
 
-An enterprise AI system does not become trustworthy by choosing better components. It becomes trustworthy by acquiring architectural properties, in an order that cannot be skipped.
+An enterprise AI system doesn't become trustworthy by choosing better components. It becomes trustworthy by acquiring architectural properties, roughly in an order that resists skipping:
 
 ```
 single agent → multiple agents → cooperation → approvals → verification → graph execution → trust → identity → architectural boundaries
 ```
 
-Read it backward, and each step asks for the one beneath it. The chain ends at architectural boundaries. That is where the rest of the chain starts.
+Read it backward and each step is asking for the one underneath it. Forward is the order a system evolves through; backward is the order of dependency, what must already hold for the next step to be possible. The chain ends at architectural boundaries, which is where the rest of it actually starts.
 
-The implementation that supports this argument is temporary. The properties will not.
+> The implementation behind this argument is temporary; I expect most of it to be replaced within a year. The properties it's demonstrating, I don't expect to change.
 
-Where the earlier article in this series framed the harness as a four-layer architecture, the layers remain, but the focus shifts to the architectural properties that hold beneath them.
+Where the earlier article framed the harness as four layers, I'm not fully settled on that framing anymore. Some days I still think in layers; other days the properties feel more real: boundary, identity, audit, whatever comes after. Both may be two ways of looking at the same thing, and I may have a cleaner answer by the next article. I'd rather say that plainly than pretend the model is more finished than it is.
 
-Four lines, in the order the architecture forces them:
+What I'm sure of, in whatever order I end up drawing it:
 
-**Graph Engineering Requires Trust.**
+**Graph Engineering needs trust.**
 
-**Trust Requires Identity.**
+**Trust needs identity.**
 
-**Identity Requires Boundaries.**
+**Identity needs boundaries.**
 
-**All of This: Enterprise AI Harness.**
+**All of it together is what I've been calling an Enterprise AI Harness.**
+
+If you've built something like this yourself, or you'd draw these boundaries differently, I'd genuinely like to hear it: in the comments, or on the repo.
