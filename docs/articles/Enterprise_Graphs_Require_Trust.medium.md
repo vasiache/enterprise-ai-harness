@@ -16,9 +16,9 @@ Where the first article framed the harness in layers, this one argues from the p
 
 Two terms govern the rest of this article.
 
-> **Architectural trust** — the ability to rely on execution guarantees that hold independently of the model's correctness.
+> **Architectural trust**: the ability to rely on execution guarantees that hold independently of the model's correctness.
 >
-> **Enterprise AI Harness** — the architecture in which a multi-agent system meets an enterprise's security requirements.
+> **Enterprise AI Harness**: the architecture in which a multi-agent system meets an enterprise's security requirements.
 
 ---
 
@@ -48,7 +48,7 @@ Lately the field compares "harness engineering" with "graph engineering" as if t
 
 The industry is moving toward graph execution as the standard. The [2026 Agentic Coding Trends Report](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf) predicts multi-agent systems replacing single-agent workflows: an orchestrator coordinates specialized agents working in parallel, each with dedicated context. One node clarifies. Another implements. A third verifies. A fourth decides.
 
-Graph Engineering designs the traffic plan. A harness is the road beneath it: the asphalt, the cameras, the lights, the signs. Agents are the cars. Where to place the light is a graph decision. The light itself, the camera, the lane divider — that is the harness.
+Graph Engineering designs the traffic plan. A harness is the road beneath it: the asphalt, the cameras, the lights, the signs. Agents are the cars. Where to place the light is a graph decision. The light itself, the camera, the lane divider. That is the harness.
 
 When the infrastructure is complete, the traffic flows. When something is missing (no signs at the merge, no lane markings), agents collide or loop. The graph does not fail because the graph is wrong. It fails because the road does not support the route.
 
@@ -219,7 +219,7 @@ One Telegram message shows what the boundaries actually do. The route crosses ev
 
 ![One Request Through the Stack](../diagrams/One%20Request%20Through%20the%20Stack.png)
 
-The tenant identity for the tool isn't a parameter the caller passes and could forge — it's a property of where the tool was deployed. The query returns only this tenant's rows, and would return zero rows if the context were ever forgotten.
+The tenant identity for the tool isn't a parameter the caller passes and could forge; it's a property of where the tool was deployed. The query returns only this tenant's rows, and would return zero rows if the context were ever forgotten.
 
 Five boundaries get enforced along that one route, and none of them get merely checked or merely logged. The whole point is that nothing about it was exciting to watch. At no point did the request's safety depend on an agent being smart, a prompt being careful, or a developer remembering a check that day. That quietness is the actual product.
 
@@ -275,13 +275,13 @@ What a full review pipeline for agent graphs looks like is a later article. For 
 
 An enterprise AI system doesn't become trustworthy by choosing better components. It becomes trustworthy by acquiring architectural properties. Two orders matter, and both resist skipping.
 
-**Evolution** — how a system grows toward graph execution:
+**Evolution** (how a system grows toward graph execution):
 
 ```
 single agent → multiple agents → cooperation → approvals → verification → graph execution
 ```
 
-**Dependency** — what each stage needs underneath it:
+**Dependency** (what each stage needs underneath it):
 
 ```
 architectural boundaries → identity → trust → graph execution
