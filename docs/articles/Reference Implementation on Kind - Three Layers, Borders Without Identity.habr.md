@@ -102,6 +102,8 @@ USING (tenant_id = current_setting('app.tenant_id', true))
 
 **Trade-off: отдельная БД на тенант vs shared + RLS.** Идеальная изоляция: отдельная база (или кластер) на тенант, ошибся в RLS, утечки нет, потому что RLS нет. Цена: N баз = N бэкапов, миграций, коннект-пулов; операционная сложность растёт линейно с числом тенантов. Для mid-market и dev/sandbox это оверкилл. Этот референс выбирает компромисс: одна платформенная БД + RLS + TenantDB + fail-safe (`ALTER DATABASE ... SET app.tenant_id = ''`). Изоляция переезжает с инфраструктуры на корректность RLS-модели. А это, в свою очередь, требует двух вещей: тестов на утечку между тенантами и дисциплины обёртки. С тестами в этом референсе честно: есть unit-тест на инвариант «контекст выставлен внутри транзакции», интеграционного cross-tenant leak-теста пока нет (см. раздел «Что пока не покрыто»). Дисциплина обёртки: запрет на прямые `asyncpg`-вызовы в пути обработки запроса; админка онбординга ходит в базу под admin-role с `BYPASSRLS`, и это легитимный ops-путь, а не часть запросного цикла. Меньше операционной сложности, больше ответственности за RLS. Для regulated/finance/HIPAA-класса компромисс пересматривается в сторону отдельной БД или кластера.
 
+![Data Boundary Shared Database Separate Rows](../diagrams/Data%20Boundary%20Shared%20Database%20Separate%20Rows.png)
+
 ### 4. Data-граница в коде: TenantDB
 
 RLS не спасает, если приложение работает с БД неправильно.
@@ -127,6 +129,8 @@ async with conn.transaction():
 Fail-safe `ALTER DATABASE postgres SET app.tenant_id = ''`: страховка на случай, если контекст забыли выставить, запрос вернёт 0 строк, а не чужие. Важный нюанс: GUC применяется только к новым соединениям, поэтому миграция RLS обязана идти до старта пула подов (в этом референсе `04_migrations.sh` отрабатывает раньше `07_tools.sh`).
 
 Полный код и комментарий про `statement_cache_size=0` в [`packages/saas-common/saas_common/supabase_client.py`](https://github.com/vasiache/enterprise-ai-harness/blob/main/isolation/packages/saas-common/saas_common/supabase_client.py).
+
+![RLS Enforcement Flow](../diagrams/RLS%20Enforcement%20Flow.png)
 
 Первые четыре границы держат физику и данные. Дальше идут agent loop и секреты: граница переезжает с инфраструктуры на то, как агенты вызывают друг друга и где живут их credentials.
 
@@ -260,7 +264,7 @@ Execution вынесен в отдельные FastMCP-серверы, подк�
 
 До этого момента мы обсуждали только архитектурные границы. Возникает естественный вопрос: зачем вся эта сложность, если можно написать одного ReAct-агента на LangGraph или CrewAI?
 
-![Graph Engineering vs Trustworthy Execution](../diagrams/Graph%20Engineering%20vs%20Trustworthy%20Execution.png)
+![Graph Engineering in Harness](../diagrams/Graph%20Engineering%20in%20Harness.png)
 
 Enterprise AI Harness существует не для того, чтобы запускать агентов. Он существует для того, чтобы сложные многоагентные процессы можно было проектировать, запускать и развивать, не разрушая границы доверия между компонентами.
 
@@ -282,11 +286,11 @@ fan-out → judge → verifier → fixer → tests → pass / retry
 
 В графе инженер управляет уже не только поведением агента, но и структурой самого процесса. Такой граф невозможен без доверенных границ. Каждый узел должен понимать, в каких рамках он работает, кто инициировал действие и по каким правилам может вызвать следующий узел. Без RLS узлы перетекают друг в друга. Без NetworkPolicy один скомпрометированный под становится точкой отказа для всех. Без Identity нет субъекта действия, а значит, audit и approval невозможны. Без TenantDB граница данных превращается в надежду на дисциплину кода.
 
+Есть и более приземлённый эффект от всей этой работы с границами. Как только агент становится YAML-объектом в своём namespace, а не процессом, которому просто верят на слово, он превращается в инженерный артефакт. Из этого следуют все остальные свойства: две версии Agent CRD это diff, выкатка в прод это merge, откат это revert, ревью проходит как у pull request. Это не про Graph Engineering и не про identity; границы делают то, для чего их изначально не продавали: превращают агента в полноценный инженерный артефакт, который можно ревьюить, тестировать и откатывать как код. Как выглядит полноценный пайплайн ревью для агентских графов, тема для отдельной статьи.
+
 Сам пайплайн уже публичен: extraction, resolution, assembly, querying knowledge-графов, каждый этап через structured-output вызовы. Это описано в официальном cookbook [Knowledge graph construction with Claude](https://platform.claude.com/cookbook/capabilities-knowledge-graph-guide). Хороший пример того, куда индустрия движется дальше: независимо собранный плейбук [Knowledge Graph Engineering for Multi-Agentic Systems](https://github.com/vasiache/enterprise-ai-harness/blob/main/docs/references/Knowledge-Graph-Engineering-Multi-Agentic-Systems.pdf). Он отображает knowledge graph на канонические агентские паттерны из [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents): shared memory для orchestrator-workers, grounding layer для evaluator-optimizer, persistent world model для долгих циклов. Как образец Graph Engineering это стоит изучить.
 
 Он отвечает на конкретный вопрос: как проектировать графы агентов. Enterprise AI Harness отвечает на другой: при каких архитектурных условиях такие графы становятся доверенными внутри enterprise? Graph Engineering представляет направление, к которому идёт индустрия и, возможно, будущий стандарт. Но граф остаётся проектом. Его всё равно нужно где-то реализовать: исполнять в условиях, которые делают каждый узел доверенным. Эта реализация как раз про нижний уровень: архитектурные свойства, без которых Graph Engineering внутри enterprise не становится доверенным, а остаётся красивой схемой.
-
-![What Each Layer Presumes](../diagrams/What%20Each%20Layer%20Presumes.png)
 
 Сверху вниз: что строит индустрия. Снизу вверх: что требуется каждому слою, чтобы он мог существовать. Graph Engineering предполагает доверенное исполнение, а оно, в свою очередь, предполагает архитектурные свойства.
 
@@ -297,8 +301,6 @@ Enterprise AI Harness не отдельная технология и не од�
 Без Identity и Audit такой граф быстро упирается в потолок: состояние сохранять можно, skills и prompts переписывать можно, можно запускать много агентов. Однако без доверенной идентичности и следа действий система остаётся инженерно интересной, но enterprise-незавершённой. Поэтому порядок жёсткий: Isolation → Identity → Trust → Orchestration → Graphs. Иначе получится красивый граф, у которого есть узлы, рёбра и амбиции, но нет доверия.
 
 ## Что дальше
-
-![Trust Emerges from Architectural Properties](../diagrams/Trust%20Emerges%20from%20Architectural%20Properties.png)
 
 Следующая статья серии должна и будет отвечать на вопрос, который здесь ещё не решён:
 
